@@ -8,9 +8,9 @@ export const Route = createFileRoute("/_authenticated/learn")({
   head: () => ({
     meta: [
       { title: "Learn — NetSec Academy" },
-      { name: "description", content: "Your skill tree from networking basics to building an IDS." },
+      { name: "description", content: "Your skill tree from packets to your first paid bug-bounty report." },
       { property: "og:title", content: "Learn — NetSec Academy" },
-      { property: "og:description", content: "Your skill tree from networking basics to building an IDS." },
+      { property: "og:description", content: "Your skill tree from packets to your first paid bug-bounty report." },
     ],
   }),
   component: Learn,
@@ -82,7 +82,7 @@ function Learn() {
                 </div>
                 <h2 className="mt-1 text-2xl font-bold">{u.title}</h2>
                 <p className="text-sm text-muted-foreground">{u.tagline}</p>
-                <p className="mt-2 font-mono text-xs text-primary">→ IDS module: {u.ids.name}</p>
+                <p className="mt-2 font-mono text-xs text-primary">→ Toolkit skill: {u.ids.name}</p>
               </div>
               <div className="flex flex-col items-center gap-6">
                 {nodes.map((n, i) => (
@@ -93,10 +93,10 @@ function Learn() {
           );
         })}
         <section className="rounded-2xl border-2 border-accent/50 bg-accent/10 p-6 text-center">
-          <h2 className="text-2xl font-bold">Final: assemble your IDS</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Run every module you've unlocked against a mixed attack replay.</p>
+          <h2 className="text-2xl font-bold">Final: the bounty capstone</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Chain every skill into a full recon → exploit → report workflow.</p>
           <Link to="/ids" className="btn-3d mt-4 inline-block rounded-xl border-2 border-accent-shade bg-accent px-5 py-2.5 text-sm font-bold uppercase text-accent-foreground">
-            Open workbench
+            Open toolkit
           </Link>
         </section>
       </div>
@@ -112,7 +112,7 @@ function Learn() {
           </p>
         </Panel>
         <Panel>
-          <h3 className="font-bold">Your IDS</h3>
+          <h3 className="font-bold">Your toolkit</h3>
           <p className="mb-3 text-xs text-muted-foreground">{modules}/8 modules online</p>
           <ul className="space-y-1.5 font-mono text-xs">
             {UNITS.map((u) => {
