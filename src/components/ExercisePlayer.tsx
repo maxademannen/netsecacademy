@@ -37,18 +37,20 @@ export function ExercisePlayer({
   function verdict(ok: boolean) {
     if (ok) {
       setChecked(true);
-      // first-try correctness is already captured by the parent via onAnswer
       onAnswer(true);
       return;
     }
     const nextTries = wrongTries + 1;
     setWrongTries(nextTries);
-    // Fire onAnswer only on the first attempt so the lesson's heart/XP accounting
-    // still runs; further wrong attempts just surface more hints.
     if (nextTries === 1) onAnswer(false);
-    // Reveal full explanation once hints are exhausted
     if (nextTries > hintsAvailable.length) setChecked(false);
   }
+
+  function resolve(ok: boolean) {
+    if (wrongTries === 0) onAnswer(ok);
+    setChecked(ok);
+  }
+
 
   function check() {
     if (checked !== null) return;
