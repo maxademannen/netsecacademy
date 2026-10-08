@@ -63,27 +63,28 @@ export function parseRules(text: string): { rules: ParsedRule[]; errors: { line:
     const line = i + 1;
     const t = raw.trim();
     if (!t || t.startsWith("#")) return;
-    const m = t.match(HEAD);
-    if (!m) {
+    const mm = t.match(HEAD);
+    if (!mm) {
       errors.push({ line, message: "Expected: action proto src sport -> dst dport (options;)" });
       return;
     }
+    const m = Array.from(mm, (x) => x ?? "");
     const r: ParsedRule = {
       line,
       raw: t,
-      action: m[1].toLowerCase(),
-      proto: m[2].toLowerCase(),
-      src: m[3],
-      sport: m[4],
-      dir: m[5],
-      dst: m[6],
-      dport: m[7],
+      action: m[1]!.toLowerCase(),
+      proto: m[2]!.toLowerCase(),
+      src: m[3]!,
+      sport: m[4]!,
+      dir: m[5]!,
+      dst: m[6]!,
+      dport: m[7]!,
       msg: "(no msg)",
       sid: 0,
       contents: [],
       nocase: false,
     };
-    for (const opt of splitOptions(m[8])) {
+    for (const opt of splitOptions(m[8]!)) {
       const idx = opt.indexOf(":");
       const key = (idx === -1 ? opt : opt.slice(0, idx)).trim().toLowerCase();
       const val = idx === -1 ? "" : opt.slice(idx + 1).trim();
@@ -121,7 +122,7 @@ export function parseRules(text: string): { rules: ParsedRule[]; errors: { line:
             break;
           }
           try {
-            r.pcre = new RegExp(pm[1], pm[2].replace(/[^gimsuy]/g, ""));
+            r.pcre = new RegExp(pm[1] ?? "", (pm[2] ?? "").replace(/[^gimsuy]/g, ""));
           } catch {
             errors.push({ line, message: "Invalid regular expression in pcre" });
           }
@@ -129,19 +130,19 @@ export function parseRules(text: string): { rules: ParsedRule[]; errors: { line:
         }
         case "threshold":
         case "detection_filter": {
-          const parts = Object.fromEntries(
+          const parts: Record<string, string> = Object.fromEntries(
             val.split(",").map((p) => {
               const [k, ...v] = p.trim().split(/\s+/);
-              return [k.toLowerCase(), v.join(" ")];
+              return [(k ?? "").toLowerCase(), v.join(" ")];
             }),
           );
-          const count = Number(parts.count);
-          const seconds = Number(parts.seconds);
+          const count = Number(parts["count"]);
+          const seconds = Number(parts["seconds"]);
           if (!count || !seconds) {
             errors.push({ line, message: `${key} needs count N, seconds S` });
             break;
           }
-          r.threshold = { count, seconds, track: parts.track === "by_dst" ? "by_dst" : "by_src" };
+          r.threshold = { count, seconds, track: parts["track"] === "by_dst" ? "by_dst" : "by_src" };
           break;
         }
         default:
@@ -156,7 +157,8 @@ export function parseRules(text: string): { rules: ParsedRule[]; errors: { line:
 function ipToInt(ip: string) {
   const p = ip.split(".").map(Number);
   if (p.length !== 4 || p.some((n) => isNaN(n))) return null;
-  return ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3];
+  const [a = 0, b = 0, c = 0, d = 0] = p;
+  return ((a << 24) >>> 0) + (b << 16) + (c << 8) + d;
 }
 
 function matchAddr(spec: string, ip: string): boolean {
@@ -170,7 +172,7 @@ function matchAddr(spec: string, ip: string): boolean {
   if (val === null) return false;
   if (s.includes("/")) {
     const [base, bitsS] = s.split("/");
-    const b = ipToInt(base);
+    const b = ipToInt(base ?? "");
     const bits = Number(bitsS);
     if (b === null) return false;
     const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
@@ -210,7 +212,7 @@ function matchDsize(spec: string, len: number) {
   if (spec.startsWith(">")) return len > Number(spec.slice(1));
   if (spec.startsWith("<")) return len < Number(spec.slice(1));
   if (spec.includes("<>")) {
-    const [a, b] = spec.split("<>").map(Number);
+    const [a = 0, b = 0] = spec.split("<>").map(Number);
     return len > a && len < b;
   }
   return len === Number(spec);
