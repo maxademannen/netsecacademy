@@ -1,320 +1,289 @@
 import type { Unit } from "../types";
-import { tcp, udp, http } from "../pkt";
-
-const scanTraffic = [
-  http(0.1, "10.0.0.12", "10.0.0.20", "GET / HTTP/1.1\nHost: shop.local"),
-  tcp(0.3, "10.0.0.12", 49200, "10.0.0.20", 443, "S"),
-  tcp(0.31, "10.0.0.20", 443, "10.0.0.12", 49200, "SA"),
-  tcp(0.32, "10.0.0.12", 49200, "10.0.0.20", 443, "A"),
-  ...Array.from({ length: 18 }, (_, i) =>
-    tcp(2 + i * 0.05, "203.0.113.77", 40000 + i, "10.0.0.20", [21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 993, 995, 1433, 3306, 3389, 8080][i]!, "S", {
-      label: "port-scan",
-      ttl: 44,
-    }),
-  ),
-  ...Array.from({ length: 6 }, (_, i) =>
-    tcp(2.02 + i * 0.05, "10.0.0.20", [21, 22, 23, 25, 53, 80][i]!, "203.0.113.77", 40000 + i, "R"),
-  ),
-  udp(5.0, "10.0.0.12", 53122, "10.0.0.1", 53, { payload: "QUERY A shop.local" }),
-];
 
 const unit3: Unit = {
-  id: "recon",
+  id: "scanning",
   index: 3,
-  title: "Recon & Scanning",
-  tagline: "How an attacker maps you — and the footprints that leaves.",
+  title: "Scanning & Enumeration",
+  tagline: "Turn 'host is up' into 'here are 14 attack surfaces'.",
   tone: "offense",
   lessons: [
     {
-      id: "recon-ladder",
-      title: "The reconnaissance ladder",
-      summary: "Passive to active, quiet to loud.",
+      id: "scan-types",
+      title: "Nmap, the proper way",
+      summary: "SYN, connect, UDP, version, scripts — and when to use which.",
       cards: [
         {
-          title: "Nobody attacks blind",
+          title: "The techniques",
+          body: ["Every scan is a question asked with a crafted packet. The response — or silence — is the answer."],
+          code: `-sS  SYN / half-open  : fast, needs root, default when privileged
+-sT  TCP connect     : no root required, loud (full handshake, logs connection)
+-sU  UDP scan        : slow; closed replies ICMP port-unreachable, open stays silent
+-sV  version detect  : banner-grab + probes; feeds everything downstream
+-O   OS detect       : stack-fingerprint
+-sC  default scripts : runs nmap NSE scripts — tons of free wins
+-A   = -sV -sC -O --traceroute   kitchen sink
+--top-ports 1000     : the ports actually worth scanning first
+-p-                  : all 65535. slow, but you must do it at least once per target
+-T4                  : timing, 0 (paranoid) to 5 (insane). 4 is normal.`,
+        },
+        {
+          title: "A pragmatic workflow",
           body: [
-            "Every intrusion starts with mapping: which hosts exist, which ports answer, which software is behind them.",
-            "Recon escalates from completely passive (WHOIS, certificate transparency logs, search engines — invisible to you) to loudly active (full port sweeps, version probes).",
-            "Your detection opportunity begins the moment it turns active.",
+            "Pass 1: `-sS --top-ports 1000 -T4` across the IP range. Finds 95% of services in minutes.",
+            "Pass 2: `-sS -p- -T4` on hosts that looked interesting. Catches the services on weird ports.",
+            "Pass 3: `-sV -sC -p <found ports>` for versions + scripts. This is where CVEs fall out.",
+            "Pass 4: `-sU --top-ports 100` for UDP. SNMP, DNS, NTP and friends.",
           ],
+          code: `nmap -sS -T4 --top-ports 1000 -oA quick 198.51.100.0/24
+nmap -sS -T4 -p- -oA deep 198.51.100.17 198.51.100.42
+nmap -sV -sC -p22,80,443,8080,5984,27017 -oA versions 198.51.100.17`,
           tone: "offense",
         },
         {
-          title: "Host discovery",
+          title: "Output you want to keep",
           body: [
-            "ICMP echo is the classic sweep, but it is widely blocked, so scanners also use TCP SYN to port 80/443, TCP ACK, and ARP on the local segment.",
-            "ARP sweeps are the quietest on a LAN and the hardest to block, because ARP must work.",
+            "`-oA basename` saves .nmap (human), .gnmap (grepable), .xml (parseable). Always use it — you will come back.",
+            "Pipe gnmap into `grep -w 'open'` to list every open port across the scan.",
           ],
-          code: `nmap -sn 10.0.0.0/24          ping sweep, no port scan
-nmap -PS80,443 10.0.0.0/24    TCP SYN discovery
-arp-scan --localnet           layer 2, cannot be firewalled off`,
-        },
-        {
-          title: "Why defenders care about the order",
-          body: [
-            "A sweep followed minutes later by a focused port scan of the three hosts that answered is a far stronger signal than either event alone.",
-            "Good detection correlates across time, not just per packet.",
-          ],
-          tone: "defense",
         },
       ],
       exercises: [
-        {
-          type: "mc",
-          q: "Which recon activity will your network sensor never see?",
-          options: ["A SYN scan", "A WHOIS lookup of your domain", "An ARP sweep", "A version probe"],
-          answer: 1,
-          explain: "Passive recon happens against third parties. Only active probes touch your wire.",
-        },
-        {
-          type: "order",
-          q: "Order a typical attack chain from first to last.",
-          items: ["Passive OSINT", "Host discovery sweep", "Port scan of live hosts", "Service version probing", "Exploitation"],
-          explain: "Each step narrows the target set. Detecting step two or three buys you time before step five.",
-        },
-      ],
-    },
-    {
-      id: "scan-types",
-      title: "Scan types and their fingerprints",
-      summary: "SYN, connect, FIN, Xmas, null, UDP — each leaves different packets.",
-      cards: [
-        {
-          title: "The main techniques",
-          body: ["Every scan is a question asked with a crafted packet. The response — or silence — is the answer."],
-          code: `-sS  SYN / half-open : send SYN, read SYN-ACK or RST, never finish
--sT  TCP connect     : full handshake, gets logged by applications
--sF  FIN scan        : lone FIN. Closed ports RST, open ports stay silent
--sX  Xmas scan       : FIN+PSH+URG set together. No real stack does this
--sN  Null scan       : no flags at all
--sU  UDP scan        : slow; closed ports reply ICMP port-unreachable
--sV  Version probe   : connects and reads banners`,
-        },
-        {
-          title: "Open vs closed vs filtered",
-          body: [
-            "Open: SYN-ACK comes back.",
-            "Closed: RST comes back.",
-            "Filtered: nothing comes back at all, because a firewall silently dropped it. That silence is information too.",
-          ],
-        },
-        {
-          title: "Detection angles",
-          body: [
-            "Rate: many distinct destination ports from one source in a short window.",
-            "Impossible flags: Xmas and null packets can be alerted on with a single rule and essentially never false-positive.",
-            "Incomplete handshakes: lots of SYNs from one source with almost no completed sessions.",
-            "Timing evasion exists — nmap's -T0 can take a day per host — so your rules need long correlation windows as well as short ones.",
-          ],
-          tone: "defense",
-        },
-      ],
-      exercises: [
-        {
-          type: "mc",
-          q: "A packet arrives with FIN, PSH and URG all set. What is it?",
-          options: ["Normal connection teardown", "An Xmas scan", "A retransmission", "A TLS handshake"],
-          answer: 1,
-          explain: "No legitimate stack sends that combination, which makes it a perfect zero-false-positive signature.",
-        },
-        {
-          type: "mc",
-          q: "Why is a SYN (half-open) scan quieter than a connect scan?",
-          options: [
-            "It uses fewer bytes",
-            "The handshake never completes, so many applications never log a connection",
-            "It is encrypted",
-            "It uses UDP",
-          ],
-          answer: 1,
-          explain: "Application logs typically record accepted connections. Half-open scans stop before that.",
-        },
         {
           type: "match",
-          q: "Match the response to the port state.",
+          q: "Match the flag to what it does.",
           pairs: [
-            ["SYN-ACK", "Open"],
-            ["RST", "Closed"],
-            ["No response", "Filtered"],
-            ["ICMP port unreachable", "Closed UDP port"],
+            ["-sS", "SYN half-open scan (default when root)"],
+            ["-sV", "Service / version detection"],
+            ["-sC", "Run default NSE scripts"],
+            ["-sU", "UDP scan"],
+            ["-p-", "All 65535 TCP ports"],
           ],
-          explain: "Silence means a firewall dropped the probe — different from an actively refused port.",
+          explain: "These are the five flags you'll use most. Memorise them.",
         },
         {
-          type: "fill",
-          q: "Which nmap flag performs a half-open SYN scan?",
-          answers: ["-ss", "-sS"],
-          explain: "-sS. It is nmap's default when run with privileges.",
+          type: "mc",
+          q: "You scanned top-1000 ports, found nothing on a host your recon said was interesting. Next step?",
+          options: ["Give up", "Run -p- (all 65535 ports) — admins hide services on weird ports", "Reboot the router", "Switch to IPv6"],
+          answer: 1,
+          explain: "SSH on 22222, Jenkins on 50000, Elastic on 9200 — never trust the top-1000.",
+        },
+        {
+          type: "mc",
+          q: "A UDP port shows 'open|filtered'. What does nmap mean?",
+          options: [
+            "It is both",
+            "No reply came back; could be open and silent, or filtered by a firewall",
+            "The host is Windows",
+            "The port is encrypted",
+          ],
+          answer: 1,
+          explain: "UDP has no handshake, so silence is ambiguous. `-sV` on the same port often resolves it.",
         },
       ],
     },
     {
-      id: "fingerprinting",
-      title: "Fingerprinting and banners",
-      summary: "Turning an open port into a software version.",
+      id: "service-enum",
+      title: "Service enumeration",
+      summary: "Once a port is open, what do you do with it?",
       cards: [
         {
-          title: "Banners give it away",
-          body: [
-            "Many services announce themselves on connect. That one line tells an attacker which exploits to try.",
-          ],
-          code: `$ nc 10.0.0.20 22
-SSH-2.0-OpenSSH_7.4
+          title: "Per-service checklists",
+          body: ["Each service has a short list of 'always try this first' moves. These are the bulk of the easy wins."],
+          code: `# SSH 22
+nmap --script ssh2-enum-algos,ssh-auth-methods -p22 <ip>
+ssh root@<ip>                      # does the banner say 'OpenSSH 7.4'? CVE lookup time.
 
-$ curl -I http://10.0.0.20
-HTTP/1.1 200 OK
-Server: Apache/2.4.29 (Ubuntu)
-X-Powered-By: PHP/5.6.40`,
-        },
-        {
-          title: "OS fingerprinting",
-          body: [
-            "Even without banners, stacks differ: initial TTL, TCP window size, option ordering, how they respond to malformed packets.",
-            "nmap -O sends a battery of deliberately strange probes and matches the responses against a database.",
-          ],
+# HTTP(S) 80/443/8080/8443  — see Unit 4
+
+# FTP 21
+nmap --script ftp-anon,ftp-syst -p21 <ip>
+ftp <ip>  → USER anonymous / PASS anonymous
+
+# SMB 139/445
+smbclient -L //<ip> -N              # null session
+enum4linux-ng -A <ip>
+nmap --script smb-vuln-* -p445 <ip>
+
+# DNS 53
+dig AXFR @<ip> target.example       # zone transfer
+
+# SMTP 25/587
+nmap --script smtp-enum-users,smtp-commands -p25 <ip>
+
+# SNMP 161 (UDP)  — "public" community string still wins constantly
+onesixtyone -c communities.txt <ip>
+snmpwalk -v2c -c public <ip>
+
+# Databases
+# 3306 mysql / 5432 postgres / 1433 mssql / 27017 mongo / 6379 redis / 9200 elastic
+# default creds + unauthenticated access are shockingly common on cloud VMs.`,
           tone: "offense",
         },
         {
-          title: "Defensive response",
+          title: "The pattern",
           body: [
-            "Suppress or fake banners where you can, but do not rely on it — obscurity is not control.",
-            "Better: alert on the probe pattern itself. A burst of malformed TCP options from one source is OS fingerprinting, full stop.",
+            "Grab the banner → look up the version → check default creds → run an NSE/metasploit module → read the docs for 'disabled by default' auth features that someone forgot to enable.",
           ],
-          tone: "defense",
+          tone: "offense",
         },
       ],
       exercises: [
         {
-          type: "mc",
-          exhibit: "Server: Apache/2.4.29 (Ubuntu)\nX-Powered-By: PHP/5.6.40",
-          q: "What is the most urgent problem this response reveals?",
-          options: [
-            "Apache is running",
-            "PHP 5.6 is long end-of-life and unpatched",
-            "The server uses Ubuntu",
-            "Nothing, headers are harmless",
-          ],
-          answer: 1,
-          explain: "Version disclosure matters because the version named is unsupported and has public exploits.",
+          type: "fill",
+          q: "Which community string is still, in 2026, the single most common SNMP finding?",
+          answers: ["public"],
+          explain: "Default. snmpwalk -v2c -c public reads MIBs with no auth and often leaks system info and configs.",
         },
         {
-          type: "fill",
-          q: "Which nmap flag attempts OS detection?",
-          answers: ["-o", "-O"],
-          explain: "-O, usually combined with -sV for service versions.",
+          type: "mc",
+          q: "You find port 6379 open, no password required. What is it and what is the risk?",
+          options: [
+            "Redis — if write access, often leads to RCE via config writes to authorized_keys",
+            "A game server, harmless",
+            "An email port",
+            "A time server",
+          ],
+          answer: 0,
+          explain:
+            "Unauth Redis is a classic RCE: `CONFIG SET dir /root/.ssh/`, `CONFIG SET dbfilename authorized_keys`, `SET x '<your ssh key>'`, `BGSAVE`. Report, don't exploit.",
         },
       ],
     },
     {
-      id: "detect-scans",
-      title: "Detecting scans",
-      summary: "From single-packet signatures to rate thresholds.",
+      id: "web-content",
+      title: "Content discovery",
+      summary: "Finding the endpoints the sitemap doesn't mention.",
       cards: [
         {
-          title: "Two detection families",
+          title: "Why wordlists win",
           body: [
-            "Signature: this one packet is impossible or forbidden. Cheap, precise, limited.",
-            "Threshold: this many events from one source within N seconds. Catches behaviour no single packet reveals.",
+            "Half the interesting URLs on any site are not linked from the homepage: /admin, /backup, /api/v2, /debug, /.git, /.env, /old, /api/internal.",
+            "A good wordlist run against a host finds them in minutes.",
           ],
-          code: `# single-packet signature
-alert tcp any any -> $HOME_NET any (msg:"Xmas scan"; flags:FPU; sid:1001;)
+          code: `# directory brute force
+ffuf -u https://target.example/FUZZ -w /lists/common.txt -mc 200,204,301,302,403 -ac
+feroxbuster -u https://target.example -w /lists/raft-medium.txt -x php,bak,old,txt -C 404 -t 50
 
-# rate threshold
-alert tcp any any -> $HOME_NET any (msg:"Port scan";
-  flags:S; threshold: type threshold, track by_src, count 15, seconds 5;
-  sid:1002;)`,
+# virtual hosts (Host header)
+ffuf -u https://target.example/ -H "Host: FUZZ.target.example" -w subs.txt -fs 1234
+
+# parameter brute force
+arjun -u https://target.example/api/v1/user -m GET
+ffuf -u 'https://target.example/api/v1/user?FUZZ=admin' -w params.txt -fs 42`,
+          tone: "offense",
         },
         {
-          title: "Choosing the count",
+          title: "Status-code reading",
           body: [
-            "Too low and your busiest load balancer becomes an attacker every morning. Too high and a patient scanner walks straight past.",
-            "Measure your real traffic first, then set the threshold above the 99th percentile of normal.",
+            "200 — exists and returned content.",
+            "301/302 — exists and redirects. Follow it; often lands on an interesting page.",
+            "401/403 — exists but auth-required. Try the IDOR/ACL bypasses from Unit 4.",
+            "429 — rate-limited. Lower threads, add --delay, or rotate IPs.",
           ],
-          tone: "defense",
+        },
+        {
+          title: "Wordlists",
+          body: [
+            "SecLists is the standard. Within it:",
+            "- Discovery/Web-Content/raft-medium-* for directories/files.",
+            "- Discovery/DNS/subdomains-top1million-*.txt for subdomains.",
+            "- Discovery/Web-Content/burp-parameter-names.txt for params.",
+            "Smaller, targeted lists beat a 1-million-word blast every time.",
+          ],
         },
       ],
       exercises: [
         {
-          type: "mc",
-          q: "Which rule option limits an alert to bursts rather than every matching packet?",
-          options: ["nocase", "threshold", "dsize", "content"],
-          answer: 1,
-          explain: "threshold (or detection_filter) counts events per source or destination inside a time window.",
+          type: "fill",
+          q: "Name the single most-used wordlist collection in bug bounty.",
+          answers: ["seclists", "SecLists"],
+          explain: "SecLists on GitHub. Thousands of curated wordlists, maintained for years.",
         },
         {
-          type: "rule",
-          q: "Write a rule that detects the port scan in this traffic — and does not alert on the normal web browsing.",
-          traffic: scanTraffic,
-          starter:
-            '# HOME_NET is 10.0.0.0/24\n# Hint: bare SYN packets, many ports, one source, short window.\n# Add a threshold option so normal browsing stays quiet.\nalert tcp any any -> $HOME_NET any (msg:"Port scan detected"; flags:S; sid:1000001;)\n',
-          explain:
-            "A bare-SYN rule with a by_src threshold fires on the scanner while a handful of legitimate connections stay below the count.",
+          type: "mc",
+          q: "ffuf keeps returning 200 for every path with the same content length. What do you do?",
+          options: [
+            "Give up — the server is impenetrable",
+            "Add -fs <length> to filter responses of that exact size (a soft 404)",
+            "Switch to UDP",
+            "Scan a different host",
+          ],
+          answer: 1,
+          explain: "Soft 404s. The server returns 200 with a 'not found' page. -fs or -ac (auto-calibration) solves it.",
         },
       ],
     },
   ],
   lab: {
     id: "lab-scan",
-    title: "Lab: scan it, then catch it",
+    title: "Lab: scan and enumerate",
     tone: "offense",
     briefing: [
-      "Phase 1 — attacker seat: use the terminal to scan 10.0.0.20 and find what it is running.",
-      "Phase 2 — defender seat: write a rule that would have caught you.",
-      "Everything here is simulated; nothing leaves your browser.",
+      "Target: 10.0.0.20, the shop server from the previous unit.",
+      "Phase 1: scan, find all open ports and identify versions.",
+      "Phase 2: enumerate the interesting ones.",
+      "The flag is hidden somewhere in the enumeration output. Format: FLAG{...}",
     ],
     terminal: {
-      host: "attacker@kali",
+      host: "hunter@kali",
       commands: {
-        "nmap -sn 10.0.0.0/24":
-          "Starting Nmap 7.94\nNmap scan report for 10.0.0.1  (gateway)   Host is up\nNmap scan report for 10.0.0.12 (desktop)   Host is up\nNmap scan report for 10.0.0.20 (shop)      Host is up\nNmap scan report for 10.0.0.44 (laptop)    Host is up\nNmap done: 256 IP addresses (4 hosts up) scanned in 2.31 seconds",
-        "nmap -sS 10.0.0.20":
-          "Starting Nmap 7.94\nNmap scan report for 10.0.0.20\nPORT     STATE    SERVICE\n22/tcp   open     ssh\n80/tcp   open     http\n443/tcp  open     https\n3306/tcp filtered mysql\n8080/tcp closed   http-proxy\nNmap done: 1 IP address (1 host up) scanned in 4.02 seconds",
-        "nmap -sV 10.0.0.20":
-          "PORT    STATE SERVICE VERSION\n22/tcp  open  ssh     OpenSSH 7.4 (protocol 2.0)\n80/tcp  open  http    Apache httpd 2.4.29 ((Ubuntu))\n443/tcp open  ssl/http Apache httpd 2.4.29\nService Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel",
-        "nmap -O 10.0.0.20":
-          "Running: Linux 4.X\nOS CPE: cpe:/o:linux:linux_kernel:4.15\nOS details: Linux 4.15 - 5.6\nNetwork Distance: 1 hop",
-        "nmap -sX 10.0.0.20":
-          "PORT     STATE         SERVICE\n22/tcp   open|filtered ssh\n80/tcp   open|filtered http\n8080/tcp closed        http-proxy\nNote: Xmas scan cannot distinguish open from filtered on this stack.",
-        "nc 10.0.0.20 22": "SSH-2.0-OpenSSH_7.4",
-        "curl -I http://10.0.0.20":
-          "HTTP/1.1 200 OK\nServer: Apache/2.4.29 (Ubuntu)\nX-Powered-By: PHP/5.6.40\nContent-Type: text/html",
+        "nmap -sS --top-ports 1000 10.0.0.20":
+          "Nmap scan report for 10.0.0.20\nPORT     STATE SERVICE\n22/tcp   open  ssh\n80/tcp   open  http\n443/tcp  open  https\nNmap done: 1 host up, 3 ports.",
+        "nmap -sS -p- 10.0.0.20":
+          "PORT      STATE SERVICE\n22/tcp    open  ssh\n80/tcp    open  http\n443/tcp   open  https\n2049/tcp  open  nfs\n8080/tcp  open  http-proxy\n27017/tcp open  mongodb\n50000/tcp open  ibm-db2",
+        "nmap -sV -sC -p22,80,443,8080,27017,50000 10.0.0.20":
+          "22/tcp    open  ssh         OpenSSH 7.4 (protocol 2.0)\n|_ssh-hostkey: 2048 ...\n80/tcp    open  http        Apache httpd 2.4.29\n|_http-title: Shop Example\n443/tcp   open  ssl/http    Apache httpd 2.4.29\n8080/tcp  open  http        Jetty 9.4.z-SNAPSHOT\n|_http-title: Jenkins [Jenkins]\n|_http-server-header: Jetty(9.4.z-SNAPSHOT)\n27017/tcp open  mongodb     MongoDB 3.6.3 (no auth)\n|_mongodb-databases: admin, config, local, shopdata\n50000/tcp open  ibm-db2?    DB2 10.5",
+        "curl -s http://10.0.0.20:8080/":
+          "<html><head><title>Jenkins</title></head><body>Welcome to Jenkins!<br><a href='/script'>Script Console</a> | <a href='/login'>sign in</a></body></html>",
+        "mongo --host 10.0.0.20 --eval 'db.getSiblingDB(\"shopdata\").secrets.find().toArray()'":
+          '[\n  { "_id": 1, "key": "adminPanelFlag", "value": "FLAG{m0ng0_w1th_n0_auth_1s_a_gift}" },\n  { "_id": 2, "key": "note", "value": "move secrets to Vault, 2019-11" }\n]',
+        "ffuf -u http://10.0.0.20/FUZZ -w common.txt -mc 200,301,403 -silent":
+          "admin                   [Status: 403, Size: 199]\nbackup                  [Status: 301, Size: 0]\nphpinfo.php             [Status: 200, Size: 72014]\nrobots.txt              [Status: 200, Size: 72]\n.git/HEAD               [Status: 200, Size: 23]",
+        "curl -s http://10.0.0.20/robots.txt":
+          "User-agent: *\nDisallow: /admin\nDisallow: /old-staff-portal\nDisallow: /api/internal/v1",
+        "curl -s http://10.0.0.20/.git/HEAD":
+          "ref: refs/heads/main",
+        "ssh root@10.0.0.20": "ssh: connect refused by host — key auth only. Enumeration lab, not real exploitation.",
       },
-      hints: ["nmap -sn 10.0.0.0/24", "nmap -sS 10.0.0.20", "nmap -sV 10.0.0.20", "nc 10.0.0.20 22", "curl -I http://10.0.0.20"],
+      hints: [
+        "nmap -sS --top-ports 1000 10.0.0.20",
+        "nmap -sS -p- 10.0.0.20",
+        "nmap -sV -sC -p22,80,443,8080,27017,50000 10.0.0.20",
+        "ffuf -u http://10.0.0.20/FUZZ -w common.txt -mc 200,301,403 -silent",
+        "curl -s http://10.0.0.20/robots.txt",
+        "curl -s http://10.0.0.20/.git/HEAD",
+        "curl -s http://10.0.0.20:8080/",
+        "mongo --host 10.0.0.20 --eval 'db.getSiblingDB(\"shopdata\").secrets.find().toArray()'",
+      ],
     },
-    ruleChallenge: {
-      goal: "Alert on the port scan from 203.0.113.77 without alerting on the three normal connections.",
-      traffic: scanTraffic,
-      starter:
-        '# HOME_NET = 10.0.0.0/24\n# Goal: catch the scan, raise zero false positives.\n# This naive rule fires on every connection attempt. Fix it.\nalert tcp any any -> $HOME_NET any (msg:"TCP port scan"; flags:S; sid:1000010;)\n',
-    },
-    packets: scanTraffic,
     tasks: [
       {
-        q: "Which TCP port on 10.0.0.20 is FILTERED rather than open or closed?",
-        answers: ["3306"],
-        hint: "Run `nmap -sS 10.0.0.20`.",
+        q: "How many TCP ports are open on 10.0.0.20 after a full -p- scan?",
+        answers: ["7"],
+        hint: "Count the entries in `nmap -sS -p- 10.0.0.20`.",
       },
       {
-        q: "What SSH version is the host running? (e.g. OpenSSH_X.Y)",
-        answers: ["openssh 7.4", "openssh_7.4", "7.4"],
-        hint: "Banner-grab with `nc 10.0.0.20 22` or run `nmap -sV`.",
+        q: "Which port runs an unauthenticated MongoDB that leaks the shopdata database?",
+        answers: ["27017"],
+        hint: "The -sV output names it.",
       },
       {
-        q: "Which outdated scripting language version does the web server disclose?",
-        answers: ["php 5.6", "php/5.6.40", "5.6.40", "php 5.6.40"],
-        hint: "Try `curl -I http://10.0.0.20`.",
+        q: "Which path discovered by ffuf should be reported as critical by itself (source-code disclosure)?",
+        answers: [".git/head", ".git", ".git/HEAD"],
+        hint: "An exposed .git directory often leaks the full source tree history.",
+      },
+      {
+        q: "What is the flag? Format FLAG{...}",
+        answers: ["FLAG{m0ng0_w1th_n0_auth_1s_a_gift}", "m0ng0_w1th_n0_auth_1s_a_gift"],
+        hint: "Query the Mongo secrets collection.",
       },
     ],
   },
   ids: {
-    name: "Scan detector",
+    name: "Scanner toolkit",
     description:
-      "Threshold tracking by source: your IDS now counts bare SYNs and impossible flag combinations and raises scan alerts.",
-    rules: [
-      'alert tcp any any -> $HOME_NET any (msg:"IDS: TCP port scan"; flags:S; threshold: type threshold, track by_src, count 15, seconds 5; sid:9003001;)',
-      'alert tcp any any -> $HOME_NET any (msg:"IDS: Xmas scan"; flags:FPU; sid:9003002;)',
-      'alert tcp any any -> $HOME_NET any (msg:"IDS: Null scan"; flags:0; sid:9003003;)',
-    ],
+      "You can run nmap in the right phases, enumerate per-service, and brute-force content with ffuf — the daily routine of every hunter.",
+    rules: [],
   },
 };
 

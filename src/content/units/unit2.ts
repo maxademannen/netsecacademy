@@ -1,316 +1,342 @@
 import type { Unit } from "../types";
-import { tcp, udp, dns, http, icmp } from "../pkt";
 
 const unit2: Unit = {
-  id: "packets",
+  id: "recon",
   index: 2,
-  title: "Packet Analysis",
-  tagline: "Capture, filter and read traffic byte by byte.",
-  tone: "foundation",
+  title: "Reconnaissance & OSINT",
+  tagline: "Find the attack surface before you touch a single endpoint.",
+  tone: "offense",
   lessons: [
     {
-      id: "capture",
-      title: "How capture works",
-      summary: "Taps, SPAN ports, promiscuous mode and where your sensor should live.",
+      id: "passive-vs-active",
+      title: "Passive vs active recon",
+      summary: "The difference between watching and knocking.",
       cards: [
         {
-          title: "Getting a copy of the traffic",
+          title: "Why passive first",
           body: [
-            "A switch normally only sends you frames addressed to you. To monitor a network you need a deliberate copy.",
-            "A SPAN/mirror port tells the switch to duplicate traffic to your sensor. A network TAP is a physical device that does the same without relying on switch CPU.",
-            "Your interface must be in promiscuous mode or it will discard frames not addressed to its MAC.",
+            "Passive recon never sends a packet to the target. You read public databases: WHOIS, DNS, certificate transparency logs, GitHub, Google, Shodan, Wayback Machine, LinkedIn.",
+            "It's silent, legal almost everywhere, and gives you more surface area than any port scan will.",
+            "Only after passive recon is exhausted do serious hunters touch the target directly.",
           ],
-          code: `tcpdump -i eth0 -n -s 0 -w capture.pcap
-  -i  interface
-  -n  do not resolve names (faster, no DNS noise)
-  -s0 full packet, no truncation
-  -w  write raw pcap for later analysis`,
+          tone: "offense",
         },
         {
-          title: "Placement decides what you can see",
+          title: "The map you're building",
           body: [
-            "In front of the firewall you see every attack attempt, including the ones the firewall blocks — noisy, but great for threat intel.",
-            "Behind the firewall you only see what got through — far fewer alerts and every one matters more.",
-            "Inside a segment you can see lateral movement, which perimeter sensors are completely blind to.",
+            "By the end of recon you should have: all domains and subdomains, all public IPs, every exposed service and version, the tech stack (framework, language, CDN, auth provider), employee names and emails, and any leaked secrets or code.",
+            "Half of all bug-bounty wins are 'found an undocumented asset nobody else looked at'. Recon is where that lives.",
+          ],
+          code: `your map after good recon
+
+api-staging.target.example   AWS 54.x.x.x    Node + Express 4.17
+admin.target.example         Cloudflare      Rails 5.2  (EOL!)
+mobile-api.target.example    AWS 3.x.x.x     Spring Boot 2.4
+jenkins.ci.target.example    Hetzner         Jenkins 2.303 (CVE-2021-...)
+*.dev.target.example         GCP             various
+
+→ pick the oldest / least-loved target first.`,
+        },
+        {
+          title: "The legal line",
+          body: [
+            "Passive recon on public data: safe.",
+            "Active probing of hosts you do not own: only legal if a bug-bounty program (or written permission) covers that exact asset.",
+            "'But it was exposed to the internet' is not a legal defence anywhere. Always confirm scope before you scan.",
           ],
           tone: "defense",
-        },
-        {
-          title: "Capture filters vs display filters",
-          body: [
-            "A capture filter (BPF) decides what is written to disk. You cannot get that data back later, so be conservative.",
-            "A display filter decides what you look at right now and is freely reversible.",
-          ],
-          code: `BPF capture filter:      tcp port 80 and host 10.0.0.20
-Wireshark display filter: http.request.method == "POST"`,
         },
       ],
       exercises: [
         {
+          type: "match",
+          q: "Classify each activity.",
+          pairs: [
+            ["Reading cert transparency logs", "Passive"],
+            ["Running nmap against the target", "Active"],
+            ["Searching GitHub for 'target.com password'", "Passive"],
+            ["Fuzzing a login form", "Active"],
+          ],
+          explain: "If a packet never reaches the target, it's passive — and almost always safe.",
+        },
+        {
           type: "mc",
-          q: "Your sensor is connected to a plain switch port with no mirroring. What do you see?",
+          q: "Why do seasoned hunters do passive recon before anything else?",
           options: [
-            "All traffic on the network",
-            "Only broadcast/multicast traffic and traffic addressed to the sensor",
-            "Nothing at all",
-            "Only TCP traffic",
+            "It is required by law",
+            "It is silent, legal, and often finds forgotten assets with the fewest defenders",
+            "It is required to install Burp Suite",
+            "It automatically earns XP",
           ],
           answer: 1,
-          explain: "Switches forward unicast only to the right port. Without a SPAN port or TAP, you see broadcasts and your own traffic.",
-        },
-        {
-          type: "mc",
-          q: "Which choice is irreversible?",
-          options: ["A display filter", "A capture filter", "Sorting by time", "Colouring rules"],
-          answer: 1,
-          explain: "Packets excluded by the capture filter are never written, so that decision cannot be undone later.",
-        },
-        {
-          type: "fill",
-          q: "Which tcpdump flag writes raw packets to a file?",
-          answers: ["-w"],
-          explain: "-w file.pcap. Use -r to read one back.",
+          explain:
+            "Known assets are already contested. Forgotten subdomains and stale services are where the easier bounties live.",
         },
       ],
     },
     {
-      id: "headers",
-      title: "Reading headers",
-      summary: "The fields that matter in IP and TCP, and what they leak.",
+      id: "subdomains",
+      title: "Subdomain enumeration",
+      summary: "The single highest-ROI skill in bug hunting.",
       cards: [
         {
-          title: "The IP header fields you will use",
+          title: "Why subdomains matter",
           body: [
-            "Version/IHL, Total Length, Identification, Flags/Fragment offset, TTL, Protocol, Checksum, Source, Destination.",
-            "TTL is unexpectedly useful: operating systems start at different values (Linux 64, Windows 128, many network devices 255). A TTL of 57 arriving from far away probably started at 64.",
-          ],
-          code: ` 0                   1                   2                   3
- 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-+-------+-------+---------------+-------------------------------+
-|Version|  IHL  |      TOS      |          Total Length         |
-+-------+-------+---------------+-----+-------------------------+
-|         Identification        |Flags|      Fragment Offset    |
-+---------------+---------------+-----+-------------------------+
-|      TTL      |    Protocol   |         Header Checksum       |
-+---------------+---------------+-------------------------------+
-|                       Source Address                          |
-+---------------------------------------------------------------+
-|                    Destination Address                        |
-+---------------------------------------------------------------+`,
-        },
-        {
-          title: "The TCP header",
-          body: [
-            "Source port, destination port, sequence number, acknowledgement number, data offset, flags, window, checksum, urgent pointer.",
-            "Window size and options fingerprint the sending OS — the same trick nmap uses, in reverse, for passive defence.",
+            "Big companies run hundreds of subdomains: marketing microsites, legacy admin panels, dev/staging/qa environments, acquired-company remnants, S3-backed assets.",
+            "Each one is a separate stack with its own security posture — and the forgotten ones rarely got patched.",
           ],
         },
         {
-          title: "Fragments: an evasion classic",
+          title: "Three complementary sources",
           body: [
-            "IP can split a packet into fragments. An IDS that inspects each fragment separately will never see a signature that spans the split.",
-            "The counter is reassembly: a real IDS rebuilds the full datagram before matching. Overlapping fragments with conflicting data are themselves an alert.",
+            "1. Certificate transparency logs — every HTTPS cert ever issued is public, including for internal-looking hostnames.",
+            "2. DNS brute force — wordlist of common names (api, dev, test, admin, staging) resolved against the target.",
+            "3. Third-party datasets — Chaos (ProjectDiscovery), Securitytrails, VirusTotal, DNSDumpster, Shodan.",
           ],
+          code: `# cert transparency, no tool needed
+curl -s 'https://crt.sh/?q=%25.target.example&output=json' | jq -r '.[].name_value' | sort -u
+
+# brute force
+subfinder -d target.example -silent
+amass enum -passive -d target.example
+assetfinder --subs-only target.example
+
+# resolve + probe
+dnsx -silent -l subs.txt -a -resp
+httpx -l alive.txt -title -tech-detect -status-code`,
           tone: "offense",
+        },
+        {
+          title: "The right workflow",
+          body: [
+            "Gather from every source → merge and de-dup → resolve to IPs → probe HTTP(S) → fingerprint tech → screenshot everything (gowitness, aquatone).",
+            "You will look at hundreds of homepages in a weekend. Automate the boring parts.",
+          ],
         },
       ],
       exercises: [
         {
-          type: "mc",
-          q: "You see an inbound packet with TTL 119. What is the likely sending OS family?",
-          options: ["Linux (starts at 64)", "Windows (starts at 128)", "Cisco IOS (starts at 255)", "Impossible to guess"],
-          answer: 1,
-          explain: "119 is 128 minus 9 hops. Linux would have had to pass through a negative number of hops to reach 119 from 64.",
+          type: "fill",
+          q: "What is the one public resource that lists every HTTPS certificate ever issued?",
+          answers: ["certificate transparency", "cert transparency", "ct logs", "crt.sh"],
+          explain:
+            "Certificate transparency logs. crt.sh is the usual search interface. CA/B rules require all new certs to be logged.",
         },
         {
           type: "match",
-          q: "Match each header field to what it tells a defender.",
+          q: "Match each tool to its primary job.",
           pairs: [
-            ["TTL", "Rough hop count and OS family"],
-            ["TCP window size", "OS/stack fingerprint"],
-            ["Fragment offset", "Possible evasion attempt"],
-            ["Protocol field", "Which transport follows"],
+            ["subfinder", "Passive subdomain enumeration"],
+            ["dnsx", "Fast DNS resolution"],
+            ["httpx", "HTTP probing + tech detection"],
+            ["gowitness", "Screenshots of live sites"],
           ],
-          explain: "Fingerprinting and evasion detection both come from fields that have nothing to do with the payload.",
+          explain: "Pipeline, not a monolith. Each tool does one thing and the output of one feeds the next.",
         },
         {
           type: "mc",
-          q: "Why do attackers fragment attack payloads?",
-          options: [
-            "It makes them faster",
-            "A signature split across fragments may not match if the IDS does not reassemble",
-            "Fragments are encrypted",
-            "Firewalls always allow fragments",
-          ],
+          q: "You find `backup.old.target.example` responding with a 2017 Apache banner. What is this called in bug-bounty slang?",
+          options: ["A honeypot", "A forgotten asset / low-hanging fruit", "A canary", "A scope violation"],
           answer: 1,
-          explain: "Evasion through fragmentation is defeated by stream reassembly before matching.",
+          explain:
+            "Classic forgotten asset. Decade-old server with known CVEs, no one owns it internally. Usually critical-severity if you can show impact.",
         },
       ],
     },
     {
-      id: "filters",
-      title: "Filtering like an analyst",
-      summary: "BPF and display filter syntax that gets you to the interesting packets.",
+      id: "osint",
+      title: "OSINT & leak hunting",
+      summary: "Code repos, dorking, and the human layer.",
       cards: [
         {
-          title: "BPF essentials",
-          body: ["Primitives combine with and / or / not. These five cover most of daily work."],
-          code: `host 10.0.0.20              traffic to or from a host
-net 10.0.0.0/24             a whole subnet
-port 443                    either direction
-src host 10.0.0.12 and dst port 22
-tcp[tcpflags] & tcp-syn != 0 and tcp[tcpflags] & tcp-ack = 0
-   ^ SYN without ACK: connection attempts only`,
-        },
-        {
-          title: "Display filters",
-          body: ["Wireshark's language is field-based and far richer, because the packet is already dissected."],
-          code: `http.request.uri contains "admin"
-dns.qry.name matches "[a-z0-9]{25,}"
-tcp.flags.syn == 1 && tcp.flags.ack == 0
-ip.src == 10.0.0.12 && frame.len > 1400`,
-        },
-        {
-          title: "The analyst loop",
+          title: "Google dorking",
           body: [
-            "Filter wide, spot an anomaly, filter narrow around it, follow the stream, then write a rule so the machine finds it next time.",
-            "That last step is the whole point of this course.",
+            "Operators are the real search engine. site:, inurl:, intitle:, filetype:, -site: to exclude.",
+            "You are looking for login portals, exposed configs, error pages, directory listings.",
           ],
-          tone: "defense",
-        },
-      ],
-      exercises: [
-        {
-          type: "fill",
-          q: "Write the BPF filter for all traffic involving the subnet 10.0.0.0/24.",
-          answers: ["net 10.0.0.0/24", "net 10.0.0.0/24 "],
-          explain: "`net 10.0.0.0/24` — use `src net` or `dst net` to pick a direction.",
+          code: `site:target.example inurl:admin
+site:target.example filetype:env
+site:target.example "index of /"
+site:target.example "sql syntax" OR "undefined index"
+site:pastebin.com "target.example"      # leaked creds / dumps
+site:github.com "target.example" password`,
+          tone: "offense",
         },
         {
-          type: "mc",
-          q: "Which filter isolates connection attempts only?",
-          options: ["tcp port 80", "tcp.flags.syn == 1 && tcp.flags.ack == 0", "ip.ttl < 64", "udp"],
-          answer: 1,
-          explain: "A bare SYN is the opening packet; adding ACK would include the server's reply.",
-        },
-      ],
-    },
-    {
-      id: "streams",
-      title: "Following a stream",
-      summary: "Turning scattered packets back into a conversation.",
-      cards: [
-        {
-          title: "A flow is five fields",
+          title: "GitHub / GitLab leaks",
           body: [
-            "Source IP, source port, destination IP, destination port, protocol. That five-tuple identifies one conversation.",
-            "Flow records (NetFlow/IPFIX) keep only those plus counters and timings. No payload, tiny storage, and still enough to spot scans, beacons and exfiltration.",
+            "Developers paste production tokens into test files, forget them in commit history, and push to public repos. Daily.",
+            "trufflehog, gitleaks and github-dorks scan a repo's full history for high-entropy strings and known secret shapes (AWS, Stripe, GitHub tokens, Slack webhooks).",
+            "Finding a live API key often beats finding a web vulnerability for impact.",
           ],
-          code: `5-tuple:  10.0.0.12:49722 -> 10.0.0.20:80  TCP
-flow record: 14 packets, 8 212 bytes, 2.1 s, flags SAPF`,
+          code: `trufflehog github --repo https://github.com/target/mobile-sdk --only-verified
+gitleaks detect --source=./clone --redact`,
+          tone: "offense",
         },
         {
-          title: "Reassembly",
+          title: "The human layer",
           body: [
-            "TCP delivers bytes, not messages. A single HTTP request can arrive in three segments and a single segment can carry two requests.",
-            "Your IDS must reassemble the byte stream before content matching, or an attacker simply splits the word 'UNION' across two packets.",
+            "LinkedIn tells you which frameworks the engineering team uses, what they're hiring for, which cloud provider.",
+            "A job post reading 'experience with Kubernetes, Istio and ArgoCD on AWS EKS' is a free architecture diagram.",
+            "Breach dumps (haveibeenpwned, DeHashed) tell you which employees reused a password that is now public.",
           ],
           tone: "offense",
         },
       ],
       exercises: [
         {
-          type: "order",
-          q: "Order the steps of analysing an alert.",
-          items: [
-            "Filter to the alerting five-tuple",
-            "Follow the TCP stream to read the full conversation",
-            "Decide benign or malicious",
-            "Write or tune a rule",
-          ],
-          explain: "Always end by improving detection — otherwise you will do the same manual work again next week.",
-        },
-        {
           type: "fill",
-          q: "How many fields make up the classic flow five-tuple?",
-          answers: ["5", "five"],
-          explain: "src IP, src port, dst IP, dst port, protocol.",
+          q: "Which Google operator restricts results to a specific domain?",
+          answers: ["site:", "site"],
+          explain: "`site:target.example` is the backbone of 90% of dorks.",
         },
         {
           type: "mc",
-          q: "Why is content matching on individual packets unsafe?",
+          q: "You find an AWS access key in a commit from 2021. The repo is still public. First action?",
           options: [
-            "Packets are encrypted",
-            "An attacker can split a keyword across two segments so no single packet contains it",
-            "Packets arrive out of order only on UDP",
-            "It is too fast",
+            "Try to log in to the AWS console with it",
+            "Use `aws sts get-caller-identity` with the key to verify it is live, then report immediately",
+            "Post it on Twitter",
+            "Delete it and move on",
           ],
           answer: 1,
-          explain: "Stream reassembly before matching is what defeats segmentation evasion.",
+          explain:
+            "Minimum necessary impact proof: verify validity with a non-destructive call (sts get-caller-identity). Do NOT list buckets, read data, or create resources — any of those turn a finding into unauthorised access.",
+        },
+      ],
+    },
+    {
+      id: "scope",
+      title: "Scope & responsible disclosure",
+      summary: "The paperwork that keeps you out of jail.",
+      cards: [
+        {
+          title: "Reading a program policy",
+          body: [
+            "Three things to find on every program page before you touch anything: in-scope assets, out-of-scope assets, and prohibited actions.",
+            "Common out-of-scope: automated scanners, physical attacks, social engineering, DoS/brute-force, third-party services the company doesn't own.",
+            "Common prohibited: data exfiltration beyond proof-of-concept, pivoting to other systems, viewing other users' data without consent.",
+          ],
+        },
+        {
+          title: "The 'minimum necessary impact' rule",
+          body: [
+            "You prove the bug exists. You do not use it to its full extent.",
+            "SQLi: prove you can read `version()` or a single harmless row. Do NOT dump the users table.",
+            "RCE: `whoami` and `hostname`. Do NOT install anything, do NOT persist, do NOT look around.",
+            "IDOR: show it works against YOUR OWN second account. Do NOT iterate across other real users.",
+          ],
+          tone: "defense",
+        },
+        {
+          title: "Safe-harbour clauses",
+          body: [
+            "Modern programs include a safe-harbour clause: as long as you stay within the policy and act in good faith, the company will not pursue legal action.",
+            "No safe harbour clause? Think twice. 'They have a bounty program' is NOT a legal shield in itself.",
+          ],
+        },
+      ],
+      exercises: [
+        {
+          type: "mc",
+          q: "You find an SQLi on an in-scope endpoint. What is the right proof for the report?",
+          options: [
+            "A screenshot of `SELECT * FROM users` with 10 000 real emails",
+            "A screenshot of `SELECT version()` or `SELECT current_database()` plus the exact payload",
+            "A copy of the entire database",
+            "Nothing — just a sentence saying 'SQLi exists'",
+          ],
+          answer: 1,
+          explain:
+            "Enough to prove impact, nothing more. Dumping real user data is itself a breach and may void the bounty — and your safe harbour.",
+        },
+        {
+          type: "mc",
+          q: "A program's policy excludes 'automated scanners'. You run nuclei against the whole scope. Likely outcome?",
+          options: [
+            "Instant payout",
+            "Report rejected, possibly banned from the program",
+            "An apology from the company",
+            "They offer you a job",
+          ],
+          answer: 1,
+          explain: "Read the rules. Programs ban scanners for a reason — they drown triage.",
         },
       ],
     },
   ],
   lab: {
-    id: "lab-packet-reading",
-    title: "Lab: decode the capture",
-    tone: "defense",
+    id: "lab-recon",
+    title: "Lab: map an attack surface",
+    tone: "offense",
     briefing: [
-      "A workstation on 10.0.0.0/24 behaved oddly last night. Here are 20 packets from that window.",
-      "Use the packet viewer: click rows, read the header breakdown and the payload pane.",
-      "One client is doing something it should not. Find it.",
+      "Target: shop.example, in a simulated recon environment.",
+      "Use the tools in the terminal to enumerate subdomains, pull cert transparency, and find any OSINT leaks.",
+      "Everything is scripted; nothing leaves your browser.",
     ],
-    packets: [
-      dns(0.1, "10.0.0.33", "10.0.0.1", "updates.vendor.com"),
-      udp(0.2, "10.0.0.1", 53, "10.0.0.33", 53311, { payload: "RESPONSE A 203.0.113.10", info: "Standard query response" }),
-      tcp(0.4, "10.0.0.33", 51000, "203.0.113.10", 443, "S"),
-      tcp(0.41, "203.0.113.10", 443, "10.0.0.33", 51000, "SA", { ttl: 119 }),
-      tcp(0.42, "10.0.0.33", 51000, "203.0.113.10", 443, "A"),
-      http(1.0, "10.0.0.12", "10.0.0.20", "GET /products HTTP/1.1\nHost: shop.local\nUser-Agent: Mozilla/5.0"),
-      tcp(1.2, "10.0.0.20", 80, "10.0.0.12", 49100, "PA", { payload: "HTTP/1.1 200 OK\nContent-Length: 4120" }),
-      dns(2.0, "10.0.0.44", "10.0.0.1", "a7f3k2m9x1qp8zd4nv6.exfil-node.net", {
-        label: "dns-tunnel",
-      }),
-      dns(2.4, "10.0.0.44", "10.0.0.1", "b2c8y5w3r0ts7ln1he9.exfil-node.net", { label: "dns-tunnel" }),
-      dns(2.9, "10.0.0.44", "10.0.0.1", "k9m4p2v7xz3qb8ld0fa.exfil-node.net", { label: "dns-tunnel" }),
-      dns(3.3, "10.0.0.44", "10.0.0.1", "t5n1j8h6gd2ws4ye7uq.exfil-node.net", { label: "dns-tunnel" }),
-      icmp(4.0, "10.0.0.12", "10.0.0.1", 8),
-      icmp(4.01, "10.0.0.1", "10.0.0.12", 0),
-      tcp(5.0, "10.0.0.12", 49120, "10.0.0.20", 22, "S"),
-      tcp(5.01, "10.0.0.20", 22, "10.0.0.12", 49120, "SA"),
-      tcp(5.02, "10.0.0.12", 49120, "10.0.0.20", 22, "A"),
-      http(6.0, "10.0.0.12", "10.0.0.20", "POST /cart HTTP/1.1\nHost: shop.local\nContent-Length: 42"),
-      dns(7.0, "10.0.0.44", "10.0.0.1", "w3e9r1t5y7u2i4o6p8a.exfil-node.net", { label: "dns-tunnel" }),
-      tcp(8.0, "10.0.0.33", 51000, "203.0.113.10", 443, "PA", { payload: "<TLS application data>" }),
-      tcp(9.0, "10.0.0.33", 51000, "203.0.113.10", 443, "FA"),
-    ],
+    terminal: {
+      host: "hunter@workstation",
+      commands: {
+        "whois shop.example":
+          "Domain Name: SHOP.EXAMPLE\nRegistrar: Example Registrar\nRegistrant Organization: Example Shops Ltd.\nRegistrant Country: UK\nName Server: ns1.cloudflare.com\nName Server: ns2.cloudflare.com\nCreated: 2008-04-12",
+        "subfinder -d shop.example -silent":
+          "www.shop.example\napi.shop.example\nmobile.shop.example\nadmin.shop.example\nstaging.shop.example\nold-blog.shop.example\ninvoices.legacy.shop.example\ndev-s3-bucket.shop.example",
+        "curl -s 'https://crt.sh/?q=%25.shop.example&output=json' | jq -r '.[].name_value' | sort -u":
+          "*.shop.example\nadmin.shop.example\napi.shop.example\ndev.internal.shop.example\ndev-s3-bucket.shop.example\ninvoices.legacy.shop.example\nmobile.shop.example\nold-blog.shop.example\nstaging.shop.example\nwww.shop.example",
+        "httpx -l subs.txt -title -tech-detect -status-code -silent":
+          "https://www.shop.example       [200] [Shop Example | Online store]  [Nginx, Cloudflare, React]\nhttps://api.shop.example       [200] [Shop API v3]                    [Express, Node]\nhttps://mobile.shop.example    [200] [Shop Mobile]                    [Nginx]\nhttps://admin.shop.example     [403] [Access denied]                  [Nginx]\nhttps://staging.shop.example   [200] [Staging — DO NOT INDEX]         [Rails 5.2, Puma]\nhttps://old-blog.shop.example  [200] [Hello world!]                   [WordPress 4.7.5]\nhttps://invoices.legacy.shop.example [500] []                         [Apache 2.2.15, PHP/5.4.16]\nhttps://dev-s3-bucket.shop.example   [200] [AWS S3 ListBucket]        [AmazonS3]",
+        "dig +short old-blog.shop.example":
+          "203.0.113.44",
+        "dig TXT shop.example +short":
+          "\"v=spf1 include:_spf.google.com include:mail.staging-corp.net ~all\"\n\"shop-site-verification=k2v9p3\"",
+        "github-dork shop.example":
+          "https://github.com/example-shops/mobile-sdk/blob/main/test/config.js  -> const API_KEY = \"sk_live_51Hxxxxxxx\" // TODO remove\nhttps://github.com/dev-contractor-01/shop-backup/blob/master/.env  -> DB_PASS=OldSummer2019!\nhttps://gist.github.com/jdoe/abc  -> AWS_SECRET=AKIA...wE+KN",
+        "nuclei -u https://old-blog.shop.example -silent":
+          "[wordpress-detect]       https://old-blog.shop.example\n[CVE-2017-5487]          https://old-blog.shop.example/wp-json/wp/v2/users  (user enum)\n[wordpress-user-enum]    users: admin, editor, j.doe\n[.git-exposed]           https://old-blog.shop.example/.git/HEAD",
+      },
+      hints: [
+        "whois shop.example",
+        "subfinder -d shop.example -silent",
+        "curl -s 'https://crt.sh/?q=%25.shop.example&output=json' | jq -r '.[].name_value' | sort -u",
+        "httpx -l subs.txt -title -tech-detect -status-code -silent",
+        "dig +short old-blog.shop.example",
+        "dig TXT shop.example +short",
+        "github-dork shop.example",
+        "nuclei -u https://old-blog.shop.example -silent",
+      ],
+    },
     tasks: [
       {
-        q: "Which internal IP is sending long random subdomain lookups?",
-        answers: ["10.0.0.44"],
-        hint: "Sort by protocol and look at the DNS query names.",
+        q: "Which subdomain appears in certificate transparency but NOT in subfinder's passive result (a classic 'internal-looking' host leaked by a cert)?",
+        answers: ["dev.internal.shop.example"],
+        hint: "Compare the two lists.",
       },
       {
-        q: "What is the attacker's domain (the part after the random label)?",
-        answers: ["exfil-node.net"],
-        hint: "All five suspicious queries share a parent domain.",
+        q: "Which legacy subdomain discloses an interpreter version that is long end-of-life (just the subdomain, e.g. `name.shop.example`)?",
+        answers: ["invoices.legacy.shop.example"],
+        hint: "Look at httpx's tech-detect output.",
       },
       {
-        q: "The SYN,ACK from 203.0.113.10 has TTL 119. Which OS family is that host likely running?",
-        answers: ["windows"],
-        hint: "128 minus a handful of hops.",
+        q: "What CMS and major version is running on old-blog.shop.example?",
+        answers: ["wordpress 4.7", "wordpress 4.7.5", "wp 4.7"],
+        hint: "nuclei fingerprinted it.",
       },
       {
-        q: "Which technique is 10.0.0.44 using? (two words, hyphen or space)",
-        answers: ["dns tunneling", "dns tunnelling", "dns-tunneling", "dns exfiltration"],
-        hint: "Data is being encoded into the hostname itself.",
+        q: "From the GitHub dork, what format of secret was leaked in config.js? (type the vendor prefix)",
+        answers: ["stripe", "sk_live", "stripe key"],
+        hint: "`sk_live_` is a Stripe live secret key.",
+      },
+      {
+        q: "What is the flag? (hint: run the SPF TXT lookup and submit the site-verification token value)",
+        answers: ["k2v9p3"],
+        hint: "`dig TXT shop.example +short` — look for the site-verification record.",
       },
     ],
   },
   ids: {
-    name: "Packet parser",
+    name: "Recon toolkit",
     description:
-      "Your IDS now decodes IP/TCP/UDP headers and reassembles payloads, so later modules can match on real content.",
+      "You can enumerate subdomains three ways, pull cert transparency, probe tech stacks, and dork for leaks.",
     rules: [],
   },
 };

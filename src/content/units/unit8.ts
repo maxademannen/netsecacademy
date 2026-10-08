@@ -1,130 +1,274 @@
 import type { Unit } from "../types";
 
-const baseline = Array.from({ length: 60 }, (_, i) => 20 + Math.round(5 * Math.sin(i / 4)));
-const anomalySeries = [...baseline];
-[30, 31, 32, 33, 34].forEach((i) => (anomalySeries[i] = 180 + i));
-
 const unit8: Unit = {
-  id: "anomaly",
+  id: "bounty-craft",
   index: 8,
-  title: "Anomaly Detection",
-  tagline: "When the attacker's packets look fine, but their behaviour does not.",
+  title: "Bug Bounty Craft",
+  tagline: "Turn findings into paid reports — and don't get banned.",
   tone: "defense",
   lessons: [
     {
-      id: "baselines",
-      title: "Baselines",
-      summary: "You cannot detect 'unusual' without defining 'usual' first.",
+      id: "picking-programs",
+      title: "Picking programs",
+      summary: "Where to hunt and how to not waste a weekend.",
       cards: [
         {
-          title: "What to baseline",
+          title: "The platforms",
           body: [
-            "Flow volume per hour. Unique destinations per host per day. DNS query count per client. Login failure rate per account.",
-            "Baselines are per-entity and per-time-of-day. 'A lot of traffic at 03:00' is not the same signal as 'a lot of traffic at 10:00'.",
+            "HackerOne, Bugcrowd, Intigriti, YesWeHack — managed platforms with triage, payouts and reputation.",
+            "Independent programs (direct on company websites) — often less competition, slower payouts, policies vary.",
+            "Government disclosure programs (US VDP, UK NCSC, EU) — no money, but useful CVEs and recognition.",
           ],
         },
         {
-          title: "The simplest useful statistic",
+          title: "Signals of a good program",
           body: [
-            "Mean + k * standard deviation, computed over a rolling window. Anything above that threshold is an anomaly to investigate.",
-            "k = 3 catches the obvious. k = 6 catches almost nothing but is close to false-positive-free.",
+            "- Wide scope (`*.example.com`) and recent additions = less picked-over.",
+            "- Mean response time under a week = active triage team.",
+            "- Public hall-of-fame or published bounty amounts = real payouts.",
+            "- Clear safe-harbour clause.",
+            "- Few 'everyone found this already' known-issues.",
+          ],
+        },
+        {
+          title: "Signals of a trap",
+          body: [
+            "- 'Thanks letter only' with 500+ hunters already registered — your effort funds their security for free.",
+            "- Scope that excludes everything interesting ('out of scope: all subdomains').",
+            "- Triage times measured in months.",
+            "- Public reviews on Twitter / disclose.io say 'they always downgrade severity'.",
           ],
           tone: "defense",
-          code: `window = last 24 hours of request counts per minute
-mean   = average
-stdev  = population standard deviation
-threshold = mean + 3 * stdev
-alert when current > threshold for 5 consecutive minutes`,
         },
       ],
       exercises: [
         {
           type: "mc",
-          q: "Why 'for 5 consecutive minutes'?",
-          options: ["Analysts need coffee time", "To suppress single-minute spikes that are usually noise", "To conserve CPU", "SIEMs require it"],
+          q: "A program says 'automated scanners are strictly forbidden'. Running nuclei with 50 templates against the whole scope is…",
+          options: ["Fine", "A policy violation; expect a ban and a rejected report", "A certification requirement", "Encouraged"],
           answer: 1,
-          explain: "Persistence is cheap evidence that the deviation is real, not a one-off blip.",
+          explain: "Read the policy word-for-word. 'Automated scanners' includes nuclei, dastardly, sqlmap bursts, feroxbuster at high threads.",
         },
       ],
     },
     {
-      id: "flow-features",
-      title: "Flow features",
-      summary: "What machine learning for IDS actually uses.",
+      id: "cvss",
+      title: "Severity: CVSS, briefly",
+      summary: "Enough to argue your rating without faking it.",
       cards: [
         {
-          title: "Features, not packets",
+          title: "The vectors that move the number",
           body: [
-            "ML in detection almost never looks at raw bytes. It looks at engineered features per flow or per host-pair over a window:",
-            "duration, packet count, byte count, mean packet size, SYN:ACK ratio, entropy of destination ports, periodicity, time-of-day.",
-            "A classifier trained on normal vs known-bad flows learns what 'suspicious shape' means for your network.",
+            "Attack Vector — Network (0.85) > Adjacent > Local > Physical.",
+            "Attack Complexity — Low vs High. 'Needs victim to click, during office hours, with cookies set' = High.",
+            "Privileges Required — None > Low > High. 'No login required' is the big multiplier.",
+            "User Interaction — None > Required.",
+            "Scope — Changed (bug impacts things beyond its own component) is a huge boost.",
+            "Confidentiality / Integrity / Availability — High > Low > None.",
           ],
-          tone: "defense",
         },
         {
-          title: "When ML helps and when it does not",
+          title: "Mapping bug classes to typical scores",
           body: [
-            "Helps: periodic beacons, data exfiltration volumes, DGA domain names, unusual peer sets.",
-            "Does not help: zero-day exploits with no behavioural footprint. There rules + patching still win.",
+            "Reflected XSS: 6.1 Medium (needs victim click).",
+            "Stored XSS visible to admins: 8.0+ High.",
+            "IDOR to read own-tenant: 4-5 Medium.",
+            "IDOR to read other tenants: 7-8 High.",
+            "SQLi (any): 9+ Critical.",
+            "SSRF to IMDS with role: 9+ Critical.",
+            "RCE (unauthenticated): 10 Critical.",
+          ],
+        },
+        {
+          title: "Don't fight impossible fights",
+          body: [
+            "Programs have in-house SLAs. If they rate stored XSS as 6.5 Medium always, writing 'this should be 9' never works — the policy is the policy.",
+            "What works: provide extra impact (cookie stealing, admin takeover demo on a test account) that justifies the next tier.",
           ],
         },
       ],
       exercises: [
         {
-          type: "match",
-          q: "Match the attack to the feature that reveals it.",
-          pairs: [
-            ["C2 beacon", "Low variance of inter-arrival time"],
-            ["Data exfil", "Large outbound bytes to a new destination"],
-            ["DGA domains", "High character-level entropy of queried names"],
-            ["Port scan", "Many distinct destination ports per source"],
+          type: "mc",
+          q: "A reflected XSS on a logged-out marketing page. Realistic severity?",
+          options: ["Critical", "Low to Medium (6.1 is the usual ceiling)", "Informational", "High always"],
+          answer: 1,
+          explain: "No session to steal, no sensitive data, needs the victim to click. 6.1 is CVSS's default for reflected XSS.",
+        },
+      ],
+    },
+    {
+      id: "report-writing",
+      title: "Writing the report",
+      summary: "The single skill that separates $100 and $5 000 for the same bug.",
+      cards: [
+        {
+          title: "Structure that triagers love",
+          body: [
+            "1. Title — exact bug class + endpoint. 'Reflected XSS in /search q parameter'.",
+            "2. Summary — two sentences a manager can read.",
+            "3. Steps to Reproduce — numbered, copy-paste exact. Full requests. Everything a triager needs with no questions.",
+            "4. Proof of Concept — screenshots, cURL, short video for complex flows.",
+            "5. Impact — what an attacker can achieve, in plain English.",
+            "6. Suggested fix — one short paragraph. Even a wrong suggestion shows you understand the bug.",
+            "7. Timeline — when you found it.",
           ],
-          explain: "Pick the feature so a chart would show a human the same anomaly a model learns.",
+        },
+        {
+          title: "Example skeleton",
+          body: ["Save it, reuse it, fill it in."],
+          code: `# Reflected XSS in /search \`q\` parameter
+
+## Summary
+The /search endpoint reflects the \`q\` parameter into the HTML response without
+HTML encoding. Any attacker-controlled URL with a crafted payload runs JavaScript
+in the context of https://shop.example.
+
+## Steps to reproduce
+1. Open https://shop.example/search?q=<svg%20onload=alert(1)>
+2. Observe the alert fire.
+
+## Full request
+GET /search?q=<svg%20onload=alert(1)> HTTP/1.1
+Host: shop.example
+...
+
+## Impact
+Attacker-controlled JavaScript executes under shop.example. With the current
+cookie flags (session is NOT HttpOnly on this origin), the attacker can read
+the victim's session cookie, perform state-changing actions as the victim,
+and persist the attack via /comments where the input is also stored (separate
+report filed).
+
+## Suggested fix
+HTML-encode user input before echoing (<code>htmlspecialchars($q, ENT_QUOTES)</code>
+for PHP). Set HttpOnly, Secure and SameSite=Lax on the session cookie.
+
+## Timeline
+2026-10-08  Found and reported.`,
+          tone: "defense",
+        },
+        {
+          title: "The 10 things triagers hate",
+          body: [
+            "- 'theoretical' bugs with no PoC.",
+            "- 'I think there might be XSS somewhere' without a URL.",
+            "- massive dumps of real user data.",
+            "- out-of-scope reports.",
+            "- duplicate reports (search their disclosure history first).",
+            "- 'self-XSS' reported as critical.",
+            "- CSRF on logout.",
+            "- missing security headers in isolation (unless chained).",
+            "- rate limiting absence 'alone'.",
+            "- raw tool output pasted as a report.",
+          ],
+          tone: "defense",
+        },
+      ],
+      exercises: [
+        {
+          type: "order",
+          q: "Order the sections of a good report, top to bottom.",
+          items: ["Title", "Summary", "Steps to reproduce", "Proof of concept", "Impact", "Suggested fix"],
+          explain: "Title → summary → reproduce → PoC → impact → fix. Any triager can scan this in 60 seconds.",
+        },
+        {
+          type: "mc",
+          q: "Which of these is almost always reported-as-informational / closed?",
+          options: [
+            "SQLi on a login form",
+            "'Missing X-Content-Type-Options header' on a static site, alone",
+            "Stored XSS in profile bio",
+            "SSRF with IMDS response",
+          ],
+          answer: 1,
+          explain: "Missing security headers on their own aren't impactful. Chain them into something or skip.",
+        },
+      ],
+    },
+    {
+      id: "ethics",
+      title: "Ethics, pacing, and the long game",
+      summary: "A career in bounty is years long; act accordingly.",
+      cards: [
+        {
+          title: "The two commandments",
+          body: [
+            "1. Stay in scope. Always.",
+            "2. Prove impact with the minimum necessary data. Always.",
+            "Everything else — ratings, triage disputes, duplicates — is forgivable. These two are not.",
+          ],
+          tone: "defense",
+        },
+        {
+          title: "On consent",
+          body: [
+            "If a bug would let you read someone else's data (IDOR, SSRF, SQLi), prove it with your own second account or with harmless probes (version(), hostname).",
+            "Do NOT iterate 1..10000 to find real victims. Do NOT read other users' chat messages, invoices, or health records. That is a crime, bounty or no bounty.",
+          ],
+        },
+        {
+          title: "Health, pacing, duplicates",
+          body: [
+            "The hunters who last don't marathon — they build a repeatable 2–4 hour daily rhythm: recon pass, review notes, pick one target, write one report.",
+            "Duplicates sting. Shake them off; keep hunting. The win rate smooths out over months, not days.",
+            "Celebrate small wins. A clean $150 bug today beats a mythical $10 000 that never materialises.",
+          ],
+          tone: "defense",
+        },
+      ],
+      exercises: [
+        {
+          type: "mc",
+          q: "You find an IDOR that lets you read other users' private messages. You test it on your two accounts. For the report, you should include:",
+          options: [
+            "A dump of 500 real users' messages as 'proof'",
+            "Only the two-account PoC — never read real user data",
+            "A video of a real user's inbox",
+            "Nothing, just a description",
+          ],
+          answer: 1,
+          explain: "Two-account PoC is sufficient proof. Reading real users' private data turns a legal bounty into unauthorised access.",
         },
       ],
     },
   ],
   lab: {
-    id: "lab-anomaly",
-    title: "Lab: find the spike",
+    id: "lab-report",
+    title: "Report-writing drill",
     tone: "defense",
     briefing: [
-      "60 minutes of request-rate samples from the shop server. Normal volume is around 20/minute with mild cyclical variation.",
-      "A short burst in the middle looks nothing like the baseline. Compute mean + 3*stdev over the whole series and flag any minute above it.",
-      "The chart on the right is live. Numbers you type are checked against the series above.",
+      "You found a stored XSS in /comments (unit 5). Walk through the report checklist.",
+      "This lab is a thought exercise — the questions test that you know what belongs in a good report.",
     ],
-    anomaly: {
-      goal: "Flag the attack window using a 3-sigma rule.",
-      series: anomalySeries,
-      attackIdx: [30, 31, 32, 33, 34],
-      unit: "req/min",
-    },
     tasks: [
       {
-        q: "At which minute index does the burst START? (first anomalous sample)",
-        answers: ["30"],
-        hint: "Scroll the chart until the line jumps.",
+        q: "What should the title of the report say? (template: <bug class> in <endpoint>)",
+        answers: ["stored xss in /comments", "stored xss in comments", "stored xss in /comments post", "stored xss in /comments endpoint"],
+        hint: "Bug class + endpoint. No fluff.",
       },
       {
-        q: "How many consecutive minutes exceed the baseline?",
-        answers: ["5"],
-        hint: "The burst is contiguous.",
+        q: "What CVSS vector pushes a stored XSS higher than reflected XSS? (one word)",
+        answers: ["persistence", "stored", "no interaction", "ui-none", "ui:n"],
+        hint: "Stored XSS fires without the victim clicking a crafted link.",
       },
       {
-        q: "Approximate normal baseline in req/min (round to nearest 5)?",
-        answers: ["20"],
-        hint: "The quiet band hovers around twenty.",
+        q: "What is the minimum necessary PoC payload? (one HTML tag; e.g. &lt;svg...&gt; or similar)",
+        answers: ["<svg onload=alert(1)>", "svg onload=alert(1)", "<img src=x onerror=alert(1)>", "<script>alert(1)</script>", "alert(1)"],
+        hint: "Just enough to prove execution.",
+      },
+      {
+        q: "Which section of the report explains what an attacker could achieve beyond `alert(1)`?",
+        answers: ["impact", "impact section"],
+        hint: "The 'Impact' section — think account takeover, session theft via document.cookie.",
       },
     ],
   },
   ids: {
-    name: "Anomaly module",
+    name: "Report craft",
     description:
-      "Your IDS now computes rolling mean + 3*stdev per host, extracts flow features and flags beacons and volume spikes.",
-    rules: [
-      'alert udp $HOME_NET any -> any 53 (msg:"IDS: High-entropy DNS label (tunnel/DGA)"; pcre:"/QUERY A [a-z0-9]{18,}\\./"; sid:9008001;)',
-      'alert tcp $HOME_NET any -> $EXTERNAL_NET 80 (msg:"IDS: Periodic beacon"; content:"GET /checkin"; threshold: type threshold, track by_src, count 3, seconds 100; sid:9008002;)',
-    ],
+      "You can pick programs, score severity realistically, write triager-friendly reports, and hunt sustainably without crossing legal lines.",
+    rules: [],
   },
 };
 
