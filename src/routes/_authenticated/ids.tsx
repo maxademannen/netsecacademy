@@ -2,10 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { UNITS } from "@/content/units";
 import { CAPSTONE_FLAG, CAPSTONE_STEPS } from "@/content/final";
+import { CAPSTONES, type Capstone } from "@/content/capstones";
 import { bestScores, isDone, useActivity, useComplete } from "@/lib/progress";
 import { Btn, Panel } from "@/components/kit";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/_authenticated/ids")({
   head: () => ({
