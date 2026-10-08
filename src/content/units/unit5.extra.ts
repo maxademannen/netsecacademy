@@ -66,6 +66,7 @@ export const extraLessons: Lesson[] = [
       },
       {
         type: "match",
+        q: "Match each DOM API to its role in client-side data flow.",
         pairs: [
           ["innerHTML", "Dangerous Sink"],
           ["location.hash", "Source"],
@@ -118,6 +119,7 @@ export const extraLessons: Lesson[] = [
     exercises: [
       {
         type: "order",
+        q: "Order the steps for safely validating a suspected command injection.",
         items: [
           "Identify a parameter passed to a system call",
           "Inject a timing payload like '; sleep 5'",
@@ -198,6 +200,7 @@ export const extraLessons: Lesson[] = [
     exercises: [
       {
         type: "match",
+        q: "Match each vulnerability class to its root-cause fix.",
         pairs: [
           ["SQL Injection", "Parameterized Queries"],
           ["XSS", "Contextual Output Encoding"],
