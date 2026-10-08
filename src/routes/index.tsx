@@ -5,15 +5,16 @@ import { ToneTag } from "@/components/kit";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "NetSec Academy — learn network security by breaking and defending" },
+      { title: "NetSec Academy — learn offensive security and bug bounty, by hacking" },
       {
         name: "description",
-        content: "Bite-sized lessons, hands-on simulated labs and quizzes that take you from packets to building your own intrusion detection system.",
+        content:
+          "Bite-sized lessons and CTF-style labs that take you from packets to critical bug-bounty finds — the Duolingo of offensive security.",
       },
-      { property: "og:title", content: "NetSec Academy — learn network security by breaking and defending" },
+      { property: "og:title", content: "NetSec Academy — learn offensive security and bug bounty, by hacking" },
       {
         property: "og:description",
-        content: "Bite-sized lessons, simulated labs and quizzes — from packets to your own IDS.",
+        content: "Lessons, CTFs and a capstone chain — from packets to your first bounty report.",
       },
     ],
   }),
