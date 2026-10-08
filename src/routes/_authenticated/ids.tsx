@@ -2,10 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { UNITS } from "@/content/units";
 import { CAPSTONE_FLAG, CAPSTONE_STEPS } from "@/content/final";
+import { CAPSTONES, type Capstone } from "@/content/capstones";
 import { bestScores, isDone, useActivity, useComplete } from "@/lib/progress";
 import { Btn, Panel } from "@/components/kit";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/_authenticated/ids")({
   head: () => ({
@@ -89,7 +91,19 @@ function ToolkitPage() {
         ))}
       </div>
 
+      <CapstoneCard
+        capstone={CAPSTONES[0]!}
+        unlocked={isDone(best, "test", UNITS[3]!.id)}
+        unlockHint="Pass the Unit 4 test (HTTP & Web Fundamentals) to open Capstone A."
+      />
+      <CapstoneCard
+        capstone={CAPSTONES[1]!}
+        unlocked={isDone(best, "test", UNITS[6]!.id)}
+        unlockHint="Pass the Unit 7 test (Advanced Web) to open Capstone B."
+      />
+
       <Panel
+
         className={cn(
           "space-y-4",
           unlocked ? "border-accent/60 bg-accent/5" : "opacity-60",
@@ -190,3 +204,120 @@ function ToolkitPage() {
     </div>
   );
 }
+
+function CapstoneCard({
+  capstone,
+  unlocked,
+  unlockHint,
+}: {
+  capstone: Capstone;
+  unlocked: boolean;
+  unlockHint: string;
+}) {
+  const complete = useComplete();
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [answers, setAnswers] = useState<string[]>(capstone.steps.map(() => ""));
+  const [checked, setChecked] = useState<(boolean | null)[]>(capstone.steps.map(() => null));
+  const [submitted, setSubmitted] = useState<{ score: number; xp: number | null } | null>(null);
+
+  function check(i: number) {
+    const ok = capstone.steps[i]!.answers.some((a) => norm(a) === norm(answers[i] ?? ""));
+    setChecked((c) => c.map((v, j) => (j === i ? ok : v)));
+  }
+
+  async function submit() {
+    const score = (checked.filter((v) => v === true).length / capstone.steps.length) * 100;
+    setSubmitted({ score, xp: null });
+    try {
+      const xp = await complete.mutateAsync({ kind: "lab", ref: `capstone-${capstone.id}`, score });
+      setSubmitted({ score, xp });
+      if (score === 100) toast.success(`${capstone.title.split("·")[0]?.trim()} complete. +${xp} XP`);
+    } catch {
+      toast.error("Couldn't save the capstone result.");
+    }
+  }
+
+  return (
+    <Panel className={cn("space-y-4", unlocked ? "border-primary/50" : "opacity-60")}>
+      <div>
+        <p className="font-mono text-xs text-primary">CAPSTONE · {capstone.subtitle.toUpperCase()}</p>
+        <h2 className="text-2xl font-bold">{capstone.title}</h2>
+        {unlocked ? (
+          <p className="mt-1 text-sm text-muted-foreground">{capstone.intro}</p>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">{unlockHint}</p>
+        )}
+      </div>
+
+      {unlocked && (
+        <>
+          <ol className="space-y-3">
+            {capstone.steps.map((s, i) => {
+              const isOpen = open[s.id] ?? false;
+              return (
+                <li key={s.id} className="rounded-xl border-2 border-border bg-card">
+                  <button
+                    type="button"
+                    onClick={() => setOpen((o) => ({ ...o, [s.id]: !isOpen }))}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="font-bold">
+                      Step {i + 1} · {s.title}
+                    </span>
+                    <span
+                      className={cn(
+                        "font-mono text-xs",
+                        checked[i] === true && "text-primary",
+                        checked[i] === false && "text-offense",
+                        checked[i] === null && "text-muted-foreground",
+                      )}
+                    >
+                      {checked[i] === true ? "✓ solved" : checked[i] === false ? "✗ retry" : isOpen ? "▾" : "▸"}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="space-y-3 border-t-2 border-border p-4">
+                      <p className="text-sm">{s.prompt}</p>
+                      <div className="rounded-lg border border-border bg-terminal p-3 font-mono text-xs text-muted-foreground">
+                        <p className="text-primary">$ {s.commandHint}</p>
+                        <pre className="mt-1 whitespace-pre-wrap text-foreground/85">{s.response}</pre>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          value={answers[i] ?? ""}
+                          onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
+                          placeholder="Your answer"
+                          aria-label={`Answer to ${s.title}`}
+                          className={cn(
+                            "flex-1 rounded-lg border-2 border-border bg-terminal px-3 py-2 font-mono text-sm outline-none focus:border-primary",
+                            checked[i] === true && "border-primary",
+                            checked[i] === false && "border-offense",
+                          )}
+                        />
+                        <Btn type="button" onClick={() => check(i)}>
+                          Check
+                        </Btn>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Btn onClick={submit}>Submit capstone</Btn>
+            {submitted && (
+              <span className="font-mono text-sm">
+                Score {Math.round(submitted.score)}%
+                {submitted.xp !== null && <span className="text-primary"> · +{submitted.xp} XP</span>}
+              </span>
+            )}
+            {submitted?.score === 100 && <span className="font-mono text-primary">★ {capstone.flag}</span>}
+          </div>
+        </>
+      )}
+    </Panel>
+  );
+}
+

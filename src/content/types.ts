@@ -33,7 +33,11 @@ interface ExBase {
   q: string;
   exhibit?: string;
   explain: string;
+  /** Progressive hints revealed one at a time after wrong answers,
+   *  before the full explanation. Keep each hint short and nudging, not giving. */
+  hints?: string[];
 }
+
 
 export type Exercise =
   | (ExBase & { type: "mc"; options: string[]; answer: number })

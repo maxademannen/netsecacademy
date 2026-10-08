@@ -24,6 +24,8 @@ export function ExercisePlayer({
   onAnswer: (correct: boolean) => void;
 }) {
   const [checked, setChecked] = useState<null | boolean>(null);
+  const [wrongTries, setWrongTries] = useState(0);
+  const hintsAvailable = ex.hints ?? [];
 
   // state per type
   const [pick, setPick] = useState<number | null>(null);
@@ -33,9 +35,22 @@ export function ExercisePlayer({
   const rightCol = useMemo(() => (ex.type === "match" ? shuffle(ex.pairs.map((p) => p[1])) : []), [ex]);
 
   function verdict(ok: boolean) {
-    setChecked(ok);
-    onAnswer(ok);
+    if (ok) {
+      setChecked(true);
+      onAnswer(true);
+      return;
+    }
+    const nextTries = wrongTries + 1;
+    setWrongTries(nextTries);
+    if (nextTries === 1) onAnswer(false);
+    if (nextTries > hintsAvailable.length) setChecked(false);
   }
+
+  function resolve(ok: boolean) {
+    if (wrongTries === 0) onAnswer(ok);
+    setChecked(ok);
+  }
+
 
   function check() {
     if (checked !== null) return;
@@ -52,6 +67,7 @@ export function ExercisePlayer({
         return;
     }
   }
+
 
   function move(i: number, d: number) {
     if (checked !== null) return;
@@ -157,10 +173,24 @@ export function ExercisePlayer({
         />
       )}
 
-      {ex.type !== "rule" && (
-        <Btn type="button" onClick={check} disabled={checked !== null || (ex.type === "mc" && pick === null)}>
-          Check
-        </Btn>
+      {ex.type !== "rule" && checked === null && (
+        <div className="flex flex-wrap gap-2">
+          <Btn type="button" onClick={check} disabled={ex.type === "mc" && pick === null}>
+            {wrongTries > 0 ? "Try again" : "Check"}
+          </Btn>
+          {wrongTries > 0 && (
+            <Btn type="button" variant="ghost" onClick={() => resolve(false)}>
+              Show explanation
+            </Btn>
+          )}
+        </div>
+      )}
+
+      {checked === null && wrongTries > 0 && (
+        <div className="rounded-xl border-2 border-accent/50 bg-accent/10 p-3 text-sm">
+          <p className="font-bold text-accent">Not yet — hint {Math.min(wrongTries, hintsAvailable.length)}/{hintsAvailable.length}</p>
+          <p className="mt-1 text-foreground/90">{hintsAvailable[Math.min(wrongTries, hintsAvailable.length) - 1]}</p>
+        </div>
       )}
 
       {checked !== null && (
@@ -170,10 +200,11 @@ export function ExercisePlayer({
             checked ? "border-primary/50 bg-primary/10" : "border-offense/50 bg-offense/10",
           )}
         >
-          <p className="font-bold">{checked ? "Correct" : "Not quite"}</p>
+          <p className="font-bold">{checked ? (wrongTries ? "Got it — with hints" : "Correct") : "Here's the reasoning"}</p>
           <p className="mt-1 text-muted-foreground">{ex.explain}</p>
         </div>
       )}
+
     </Panel>
   );
 }
