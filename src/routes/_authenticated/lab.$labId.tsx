@@ -47,7 +47,7 @@ function LabPage() {
   })();
 
   async function submit() {
-    const c = lab.tasks.map((t, i) => t.answers.some((a) => norm(a) === norm(answers[i])));
+    const c = lab.tasks.map((t, i) => t.answers.some((a) => norm(a) === norm(answers[i] ?? "")));
     setChecked(c);
     const parts = [...c];
     if (lab.ruleChallenge) parts.push(rulePassed);

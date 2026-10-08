@@ -57,7 +57,8 @@ function LessonPage() {
     );
   }
 
-  const current = queue[0];
+  const current = queue[0] ?? 0;
+  const cardData = lesson.cards[card]!;
 
   async function onAnswer(ok: boolean) {
     setAnswered(ok);
@@ -105,25 +106,25 @@ function LessonPage() {
         <Panel
           className={cn(
             "space-y-3",
-            lesson.cards[card].tone === "offense" && "border-offense/50",
-            lesson.cards[card].tone === "defense" && "border-primary/50",
+            cardData.tone === "offense" && "border-offense/50",
+            cardData.tone === "defense" && "border-primary/50",
           )}
         >
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs text-muted-foreground">
               {card + 1}/{lesson.cards.length}
             </span>
-            <ToneTag tone={lesson.cards[card].tone} />
+            <ToneTag tone={cardData.tone} />
           </div>
-          <h2 className="text-xl font-bold">{lesson.cards[card].title}</h2>
-          {lesson.cards[card].body.map((p, i) => (
+          <h2 className="text-xl font-bold">{cardData.title}</h2>
+          {cardData.body.map((p, i) => (
             <p key={i} className="leading-relaxed text-foreground/90">
               {p}
             </p>
           ))}
-          {lesson.cards[card].code && (
+          {cardData.code && (
             <pre className="overflow-auto rounded-lg border border-border bg-terminal p-3 font-mono text-xs leading-relaxed text-primary/90">
-              {lesson.cards[card].code}
+              {cardData.code}
             </pre>
           )}
           <div className="flex justify-between pt-2">
@@ -139,7 +140,7 @@ function LessonPage() {
 
       {phase === "ex" && (
         <>
-          <ExercisePlayer key={step} ex={lesson.exercises[current]} onAnswer={onAnswer} />
+          <ExercisePlayer key={step} ex={lesson.exercises[current]!} onAnswer={onAnswer} />
           {answered !== null && (
             <div className="flex justify-end">
               <Btn variant={answered ? "primary" : "offense"} onClick={next}>

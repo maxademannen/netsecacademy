@@ -95,7 +95,7 @@ export interface PathNode {
 
 export function unitUnlocked(best: Best, index: number) {
   if (index === 0) return true;
-  return isDone(best, "test", UNITS[index - 1].id);
+  return isDone(best, "test", UNITS[index - 1]!.id);
 }
 
 export function unitNodes(best: Best, unit: Unit, idx: number): PathNode[] {

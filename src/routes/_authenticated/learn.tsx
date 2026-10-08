@@ -86,7 +86,7 @@ function Learn() {
               </div>
               <div className="flex flex-col items-center gap-6">
                 {nodes.map((n, i) => (
-                  <NodeLink key={n.kind + n.ref} node={n} offset={offsets[i % offsets.length]} />
+                  <NodeLink key={n.kind + n.ref} node={n} offset={offsets[i % offsets.length] ?? 0} />
                 ))}
               </div>
             </section>

@@ -88,7 +88,7 @@ function TestPage() {
       <p className="text-sm text-muted-foreground">No hearts lost here. Score 80% or more to pass.</p>
       <ExercisePlayer
         key={i}
-        ex={questions[i]}
+        ex={questions[i]!}
         onAnswer={(ok) => {
           setResults((r) => [...r, ok]);
           setAnswered(true);

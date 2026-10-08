@@ -44,9 +44,15 @@ function Profile() {
 
   async function save() {
     const v = name.trim();
-    if (v.length < 2 || v.length > 24) return toast.error("Username must be 2–24 characters.");
+    if (v.length < 2 || v.length > 24) {
+      toast.error("Username must be 2–24 characters.");
+      return;
+    }
     const { error } = await supabase.from("profiles").update({ username: v }).eq("id", p!.id);
-    if (error) return toast.error("Couldn't save.");
+    if (error) {
+      toast.error("Couldn't save.");
+      return;
+    }
     qc.invalidateQueries({ queryKey: ["profile"] });
     toast.success("Saved");
   }
