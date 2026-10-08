@@ -5,7 +5,7 @@ const unit1: Unit = {
   id: "foundations",
   index: 1,
   title: "Networking Foundations",
-  tagline: "Addresses, layers and the handshake everything is built on.",
+  tagline: "The protocols every hacker reads first — and the fields that leak the most.",
   tone: "foundation",
   lessons: [
     {
@@ -33,7 +33,7 @@ const unit1: Unit = {
           title: "Encapsulation",
           body: [
             "Sending data is a nesting-doll operation. Your HTTP request gets a TCP header, that gets an IP header, that gets an Ethernet header.",
-            "Every header is a small fixed set of fields. An intrusion detection system is, at heart, a program that reads those fields and decides whether the combination looks hostile.",
+            "Every header is a small fixed set of fields. Every attack is, at heart, an unusual combination of those fields or an unexpected payload inside them.",
           ],
           code: `[ Ethernet | IP | TCP | GET /index.html HTTP/1.1 ]
   dst MAC   src IP  src port   the thing you actually wanted
@@ -41,12 +41,13 @@ const unit1: Unit = {
   type      proto   flags, seq`,
         },
         {
-          title: "Where a defender sits",
+          title: "Where an attacker lives",
           body: [
-            "A network IDS taps the wire and sees layers 2-7 for every packet. A host IDS sees one machine's behaviour in detail.",
-            "Everything you build in this course is a network IDS: it will read the headers above and raise alerts.",
+            "A remote bug-bounty hunter touches layers 3–7: IP, TCP/UDP, TLS, and the application.",
+            "A hunter on the same Wi-Fi can also touch layer 2 — ARP spoofing, rogue DHCP, evil-twin APs.",
+            "Knowing which layer a bug lives at tells you which tool reaches it. Burp Suite is layer 7. Nmap is layers 3–4. Wireshark reads all seven.",
           ],
-          tone: "defense",
+          tone: "offense",
         },
       ],
       exercises: [
@@ -65,21 +66,21 @@ const unit1: Unit = {
         },
         {
           type: "match",
-          q: "Match each protocol to its layer.",
+          q: "Match each tool to the layer it mostly works at.",
           pairs: [
-            ["ARP", "Link"],
-            ["IP", "Internet"],
-            ["UDP", "Transport"],
-            ["DNS", "Application"],
+            ["Burp Suite", "Application"],
+            ["Nmap", "Transport"],
+            ["Wireshark", "All layers"],
+            ["arpspoof", "Link"],
           ],
-          explain: "ARP maps IP to MAC on the local segment, so it sits at the link layer even though it mentions IP addresses.",
+          explain: "Picking the right layer-tool is 80% of being efficient. A web bug does not need Wireshark.",
         },
       ],
     },
     {
       id: "addressing",
       title: "IP addresses and subnets",
-      summary: "Reading CIDR, knowing what is local and what is not.",
+      summary: "Reading CIDR, knowing what is local and what is not — essential for scoping.",
       cards: [
         {
           title: "Dotted quads and masks",
@@ -96,19 +97,18 @@ const unit1: Unit = {
 /24 -> 254 hosts       /30 -> 2 hosts (point-to-point links)`,
         },
         {
-          title: "HOME_NET",
+          title: "Why scoping lives here",
           body: [
-            "Detection rules almost always start by splitting the world into 'us' and 'them'. In Snort and Suricata that is the $HOME_NET and $EXTERNAL_NET variables.",
-            "Getting HOME_NET wrong is the single most common reason a rule set is silently useless: if your own network is not listed, inbound-only rules never fire.",
-            "Throughout this course HOME_NET is 10.0.0.0/24.",
+            "Every bug bounty program names an IP range or domain list that is in-scope. Testing outside it is unauthorised access — a crime, not a bug.",
+            "If the scope is `*.example.com and 203.0.113.0/24`, you'd better be able to read '203.0.113.42 is inside that /24' at a glance.",
           ],
-          tone: "defense",
+          tone: "offense",
         },
         {
           title: "Private ranges",
           body: [
             "RFC1918 reserves three ranges that never appear on the public internet: 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16.",
-            "Seeing a private source address arrive from the internet-facing interface is itself an alert — somebody is spoofing.",
+            "Seeing one of these in a bug-bounty response can be gold: an app leaking an internal IP has usually leaked something more interesting — an SSRF target, an internal API, a staging host.",
           ],
         },
       ],
@@ -128,22 +128,23 @@ const unit1: Unit = {
         },
         {
           type: "mc",
-          q: "A packet arrives on your internet uplink with source 192.168.1.40. What is the correct reading?",
+          q: "A bug-bounty program's scope reads `*.shop.example and 198.51.100.0/24`. You discover the host api.staging.shop.example resolves to 192.0.2.17. Can you test it?",
           options: [
-            "Normal traffic from a home user",
-            "Spoofed source address — private ranges are not routable on the internet",
-            "A DNS response",
-            "An ARP broadcast",
+            "Yes, the subdomain matches *.shop.example",
+            "No, the IP is outside 198.51.100.0/24 so the scope rules exclude it",
+            "Only on weekends",
+            "Only with permission from the ISP",
           ],
-          answer: 1,
-          explain: "RFC1918 addresses are never routed publicly, so an inbound packet claiming one has a forged source.",
+          answer: 0,
+          explain:
+            "Scope rules are usually read as OR across lines: match EITHER the wildcard subdomain OR the IP range. The subdomain match is enough. Always re-read the exact wording per program.",
         },
       ],
     },
     {
       id: "tcp-udp",
       title: "TCP, UDP and the handshake",
-      summary: "Flags, sequence numbers, and why half-open connections matter.",
+      summary: "Flags, sequence numbers, and why 'closed' is useful information.",
       cards: [
         {
           title: "Two transports, two philosophies",
@@ -162,7 +163,7 @@ const unit1: Unit = {
         {
           title: "The three-way handshake",
           body: [
-            "Every TCP connection opens the same way, and almost every scanning and flooding technique is a deliberate deviation from it.",
+            "Every TCP connection opens the same way, and almost every scanning technique is a deliberate deviation from it.",
           ],
           code: `client            server
    | ---- SYN ------->|   "can we talk? my seq = x"
@@ -171,12 +172,12 @@ const unit1: Unit = {
    |   established    |`,
         },
         {
-          title: "Deviations are signal",
+          title: "What silence vs reset tells an attacker",
           body: [
-            "SYN with no follow-up ACK: a half-open scan, or a SYN flood.",
-            "SYN,ACK arriving at a host that sent no SYN: backscatter from a spoofed attack elsewhere.",
-            "RST straight back: the port is closed — exactly what a scanner wants to learn.",
-            "No flags at all, or FIN+PSH+URG together: a crafted 'null' or 'Xmas' scan, since no real stack sends those.",
+            "SYN-ACK back → the port is OPEN. Interesting.",
+            "RST back → the port is CLOSED but the host exists. Still interesting.",
+            "No reply at all → FILTERED by a firewall. Different kind of interesting.",
+            "Three different answers from three different packets, and nothing had to log in. That is why scanning works.",
           ],
           tone: "offense",
         },
@@ -186,14 +187,14 @@ const unit1: Unit = {
           type: "order",
           q: "Order the three-way handshake.",
           items: ["Client sends SYN", "Server replies SYN,ACK", "Client sends ACK"],
-          explain: "SYN, SYN-ACK, ACK. Memorise it; half of network detection is noticing when it does not complete.",
+          explain: "SYN, SYN-ACK, ACK. Memorise it; half of network attacks are shaped around skipping or breaking a step.",
         },
         {
           type: "mc",
-          q: "A host receives SYN and answers RST. What does the sender learn?",
-          options: ["The port is open", "The port is closed", "The host is down", "A firewall dropped it"],
+          q: "A host replies RST to your SYN. What do you learn?",
+          options: ["The port is open", "The port is closed but the host is up", "The host is down", "A firewall dropped the packet"],
           answer: 1,
-          explain: "A reset means nothing is listening. Silence (no reply) is what usually indicates a filtering firewall.",
+          explain: "A reset means nothing is listening on that port. Silence (no reply) is what usually indicates a filtering firewall.",
         },
         {
           type: "fill",
@@ -201,76 +202,93 @@ const unit1: Unit = {
           answers: ["S", "SYN"],
           explain: "SYN — synchronise sequence numbers.",
         },
-        {
-          type: "mc",
-          q: "Why do attackers like UDP for floods?",
-          options: [
-            "UDP packets are larger",
-            "No handshake is required, so the source can be forged freely",
-            "UDP is encrypted",
-            "Firewalls cannot see UDP",
-          ],
-          answer: 1,
-          explain: "With no handshake there is nothing to complete, so spoofed sources work and reflection/amplification becomes possible.",
-        },
       ],
     },
     {
       id: "dns-http",
       title: "DNS and HTTP in the wild",
-      summary: "The two protocols you will read most often in a capture.",
+      summary: "The two protocols you will exploit most often.",
       cards: [
         {
-          title: "DNS: the network's phone book",
+          title: "DNS: the attacker's map",
           body: [
-            "Before almost any connection there is a DNS lookup. That makes DNS logs the richest early-warning source a defender has.",
-            "A query is normally UDP port 53. TCP 53 is used for large answers and zone transfers.",
+            "Before you can attack anything you need to know its address, and DNS is how you find it. Before almost any user action there is a DNS lookup.",
+            "A query is normally UDP port 53. TCP 53 is used for large answers and (historically) zone transfers — a misconfiguration that still works surprisingly often on obscure hosts.",
           ],
-          code: `10.0.0.12:53122 -> 10.0.0.1:53   QUERY  A  shop.example.com
-10.0.0.1:53     -> 10.0.0.12:53122 RESPONSE A 93.184.216.34  TTL 300`,
+          code: `$ dig +short shop.example
+93.184.216.34
+
+$ dig AXFR @ns1.old-vendor.net example.com   # zone transfer attempt
+; often blocked; on a bad config, dumps every subdomain.
+
+$ dig +short txt example.com                 # TXT records leak more than people think:
+"v=spf1 include:_spf.google.com include:mail.staging-corp.net ~all"`,
         },
         {
-          title: "HTTP: plain text you can grep",
+          title: "HTTP: plain text you can modify",
           body: [
-            "An unencrypted HTTP request is literally readable ASCII, which is why signature rules for web attacks are so effective on it.",
-            "With HTTPS the body is encrypted — detection then relies on metadata: SNI, certificate details, timing, volumes.",
+            "An HTTP request is literally editable text. Any field — method, path, query string, headers, body, cookies — is attacker-controlled on the wire.",
+            "A hunter's instinct: tamper every parameter, change the method, flip a '1' to '2', double every character, inject a quote, strip a cookie.",
           ],
-          code: `GET /login?user=admin HTTP/1.1
-Host: shop.local
+          code: `GET /account?id=42 HTTP/1.1
+Host: shop.example
+Cookie: session=abc123
 User-Agent: Mozilla/5.0
-Cookie: session=abc123`,
+
+↓ tamper every piece ↓
+
+PUT /account?id=43 HTTP/1.1
+Host: shop.example
+Cookie: session=abc123
+X-Original-URL: /admin
+
+?id=43'  ?id=42+UNION+SELECT+1--  ?id=../../etc/passwd`,
+          tone: "offense",
         },
         {
-          title: "Suspicious shapes to remember",
+          title: "Status codes you want to see",
           body: [
-            "Very long random subdomains repeated to one nameserver: DNS tunnelling or algorithm-generated domains.",
-            "A User-Agent of 'sqlmap' or 'nmap' — attackers often forget to change it.",
-            "Hundreds of requests per second from one client to one login URL: brute force.",
+            "200 OK with content you shouldn't be seeing → the actual vulnerability.",
+            "302 Found redirecting you away from an admin page → look at where it redirects. The response body often leaks the page anyway.",
+            "500 Internal Server Error with a stack trace → version info, framework, maybe a SQL fragment. Chef's kiss.",
+            "403 Forbidden on /admin but 200 on /ADMIN or /admin/ or /admin;jsessionid=x → access-control bypasses are often one byte away.",
           ],
-          tone: "defense",
+          tone: "offense",
         },
       ],
       exercises: [
         {
           type: "mc",
-          q: "Which transport and port does an ordinary DNS query use?",
-          options: ["TCP 53", "UDP 53", "UDP 67", "TCP 853"],
+          q: "You see `/admin` returns 403 and `/admin/` returns 200. What does that most likely indicate?",
+          options: [
+            "Just a URL alias — same page",
+            "An access-control rule that only matched the exact string `/admin`, bypassed by a trailing slash",
+            "A DNS problem",
+            "A TLS mismatch",
+          ],
           answer: 1,
-          explain: "UDP 53 for normal queries; TCP 53 for oversized answers and zone transfers.",
+          explain: "This is a textbook authorisation bypass. Many frameworks route both forms to the same handler but check ACLs with string equality.",
         },
         {
           type: "mc",
-          exhibit: "GET /?q=' OR 1=1-- HTTP/1.1\nHost: shop.local\nUser-Agent: sqlmap/1.7",
-          q: "Which single field in this request is the strongest detection opportunity?",
-          options: ["Host header", "The HTTP version", "User-Agent: sqlmap/1.7", "The GET method"],
-          answer: 2,
-          explain: "A self-identifying attack tool in the User-Agent is a one-line, near-zero-false-positive signature.",
+          exhibit:
+            "HTTP/1.1 500 Internal Server Error\nX-Powered-By: PHP/5.6.40\n\n...\nFile: /var/www/html/pay.php on line 72\nQuery: SELECT * FROM users WHERE email='x\\'' AND status=1",
+          q: "Which single detail is the strongest lead?",
+          options: [
+            "The 500 status",
+            "The disclosed PHP version AND the SQL fragment, together revealing an unescaped quote",
+            "The Host header",
+            "Nothing — this is normal",
+          ],
+          answer: 1,
+          explain:
+            "500 + stack trace + raw SQL = version info, a confirmed injection point, and a known-EOL interpreter. Three findings in one error page.",
         },
         {
           type: "fill",
           q: "Name the HTTP header that tells a server which site a request is for.",
           answers: ["host", "host header"],
-          explain: "The Host header. It is also how one IP can serve many sites.",
+          explain: "The Host header. It is also how one IP can serve many sites — and tampering it is the basis of host-header injection and virtual-host confusion.",
         },
       ],
     },
@@ -280,9 +298,9 @@ Cookie: session=abc123`,
     title: "Lab: read your first capture",
     tone: "defense",
     briefing: [
-      "You are sitting on the span port of a small office network, 10.0.0.0/24.",
-      "A capture of 60 seconds has been loaded. Use the packet viewer to answer the questions, then try the terminal.",
-      "Click any packet to see its decoded headers.",
+      "A capture from a small office network, 10.0.0.0/24, has been loaded.",
+      "Learning to read raw traffic is where every network hacker starts — Wireshark, Burp Suite, mitmproxy, all of them show you the same thing: fields and bytes.",
+      "Click any packet to see decoded headers and payload. Use the terminal to run a few sensor commands.",
     ],
     terminal: {
       host: "analyst@sensor",
@@ -335,9 +353,9 @@ Cookie: session=abc123`,
     ],
   },
   ids: {
-    name: "Packet model",
+    name: "Protocol literacy",
     description:
-      "Your IDS can now represent a packet: addresses, ports, protocol, flags and payload. Everything else plugs into this.",
+      "You can read IP/TCP/UDP headers, understand the handshake, and spot normal vs abnormal traffic. Every tool past this point assumes it.",
     rules: [],
   },
 };

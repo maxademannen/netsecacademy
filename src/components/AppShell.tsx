@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const nav = [
     { to: "/learn", label: "Learn" },
-    { to: "/ids", label: "IDS Workbench" },
+    { to: "/ids", label: "Toolkit" },
     { to: "/leaderboard", label: "Leaderboard" },
     { to: "/profile", label: "Profile" },
   ] as const;

@@ -1,67 +1,70 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { UNITS } from "@/content/units";
-import { FINAL_TRAFFIC, INCIDENT_NAMES } from "@/content/final";
+import { CAPSTONE_FLAG, CAPSTONE_STEPS } from "@/content/final";
 import { bestScores, isDone, useActivity, useComplete } from "@/lib/progress";
-import { gradeDetection, runRules, type Grade, type Alert } from "@/lib/rule-engine";
 import { Btn, Panel } from "@/components/kit";
-import { PacketViewer } from "@/components/PacketViewer";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/ids")({
   head: () => ({
     meta: [
-      { title: "IDS Workbench — NetSec Academy" },
-      { name: "description", content: "Assemble and test the intrusion detection system you built module by module." },
-      { property: "og:title", content: "IDS Workbench — NetSec Academy" },
-      { property: "og:description", content: "Assemble and test the intrusion detection system you built module by module." },
+      { title: "Toolkit & Capstone — NetSec Academy" },
+      {
+        name: "description",
+        content: "Your hacker's toolkit and the final chained CTF — turn every skill into one bounty-grade report.",
+      },
+      { property: "og:title", content: "Toolkit & Capstone — NetSec Academy" },
+      {
+        property: "og:description",
+        content: "Your hacker's toolkit and the final chained CTF.",
+      },
     ],
   }),
-  component: IdsPage,
+  component: ToolkitPage,
 });
 
-const STORAGE = "netsec.customRules";
+const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
-function IdsPage() {
+function ToolkitPage() {
   const { data: activity } = useActivity();
   const best = bestScores(activity);
   const complete = useComplete();
   const online = UNITS.map((u) => isDone(best, "test", u.id));
-  const engineOnline = online[6];
-  const [custom, setCustom] = useState("");
-  const [run, setRun] = useState<{ grade: Grade; alerts: Alert[] } | null>(null);
-  const finalDone = isDone(best, "lab", "final-ids");
+  const unlocked = online.every(Boolean);
+  const finalDone = isDone(best, "lab", "final-chain");
 
-  useEffect(() => {
-    setCustom(localStorage.getItem(STORAGE) ?? "# Your own rules (unlocked with the Rule engine module)\n");
-  }, []);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [answers, setAnswers] = useState<string[]>(CAPSTONE_STEPS.map(() => ""));
+  const [checked, setChecked] = useState<(boolean | null)[]>(CAPSTONE_STEPS.map(() => null));
+  const [submitted, setSubmitted] = useState<{ score: number; xp: number | null } | null>(null);
 
-  async function replay() {
-    localStorage.setItem(STORAGE, custom);
-    const rules = UNITS.filter((_, i) => online[i]).flatMap((u) => u.ids.rules);
-    const text = rules.join("\n") + (engineOnline ? "\n" + custom : "");
-    const res = runRules(text, FINAL_TRAFFIC);
-    const grade = gradeDetection(FINAL_TRAFFIC, res.alerts);
-    setRun({ grade, alerts: res.alerts });
-    if (grade.passed && online.every(Boolean) && !finalDone) {
-      try {
-        const xp = await complete.mutateAsync({ kind: "lab", ref: "final-ids", score: 100 });
-        toast.success(`Your IDS caught everything. +${xp} XP`);
-      } catch {
-        toast.error("Couldn't save the result.");
-      }
+  function check(i: number) {
+    const ok = CAPSTONE_STEPS[i]!.answers.some((a) => norm(a) === norm(answers[i] ?? ""));
+    setChecked((c) => c.map((v, j) => (j === i ? ok : v)));
+  }
+
+  async function submit() {
+    const score = (checked.filter((v) => v === true).length / CAPSTONE_STEPS.length) * 100;
+    setSubmitted({ score, xp: null });
+    try {
+      const xp = await complete.mutateAsync({ kind: "lab", ref: "final-chain", score });
+      setSubmitted({ score, xp });
+      if (score === 100) toast.success(`Capstone complete. +${xp} XP`);
+    } catch {
+      toast.error("Couldn't save the capstone result.");
     }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <p className="font-mono text-xs text-muted-foreground">CAPSTONE</p>
-        <h1 className="text-3xl font-bold">IDS Workbench</h1>
+        <p className="font-mono text-xs text-muted-foreground">TOOLKIT &amp; CAPSTONE</p>
+        <h1 className="text-3xl font-bold">Your hacker's toolkit</h1>
         <p className="mt-1 max-w-2xl text-muted-foreground">
-          Every unit test you pass brings a module of your intrusion detection system online. Replay the mixed attack capture and
-          see what your IDS catches — and what slips through.
+          Each unit test you pass unlocks a skill set here. Once all eight are green, the final chained CTF opens — a realistic
+          bug-bounty workflow from recon to a critical write-up.
         </p>
       </div>
 
@@ -71,72 +74,119 @@ function IdsPage() {
             key={u.id}
             className={cn(
               "rounded-2xl border-2 p-4",
-              online[i] ? "glow border-primary/60 bg-primary/10" : "border-dashed border-border bg-card/50",
+              online[i] ? "glow border-primary/60 bg-primary/10" : "border-dashed border-border bg-card/50 opacity-70",
             )}
           >
             <div className="flex items-center justify-between">
-              <span className="font-mono text-[10px] text-muted-foreground">MOD {u.index}</span>
+              <span className="font-mono text-[10px] text-muted-foreground">SKILL 0{u.index}</span>
               <span className={cn("font-mono text-[10px] font-bold", online[i] ? "text-primary" : "text-muted-foreground")}>
-                {online[i] ? "ONLINE" : "OFFLINE"}
+                {online[i] ? "UNLOCKED" : "LOCKED"}
               </span>
             </div>
             <h3 className="mt-1 font-bold">{u.ids.name}</h3>
             <p className="mt-1 text-xs text-muted-foreground">{u.ids.description}</p>
-            {u.ids.rules.length > 0 && <p className="mt-2 font-mono text-[10px] text-muted-foreground">{u.ids.rules.length} built-in rules</p>}
           </div>
         ))}
       </div>
 
-      <Panel className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold">Custom rules</h2>
-          {!engineOnline && <span className="font-mono text-xs text-accent">Unlocks with the Rule engine module (unit 7)</span>}
-        </div>
-        <textarea
-          value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-          disabled={!engineOnline}
-          rows={5}
-          spellCheck={false}
-          aria-label="Custom IDS rules"
-          className="w-full rounded-xl border-2 border-border bg-terminal p-3 font-mono text-xs outline-none focus:border-primary disabled:opacity-50"
-        />
-        <Btn variant="accent" onClick={replay}>
-          ▶ Replay attack capture ({FINAL_TRAFFIC.length} packets)
-        </Btn>
-      </Panel>
-
-      {run && (
-        <Panel className="space-y-4">
-          <div className="flex flex-wrap items-baseline gap-4">
-            <h2 className="text-xl font-bold">Detection report</h2>
-            <span className="font-mono text-primary">
-              {run.grade.detected.length}/{run.grade.incidents.length} incidents
-            </span>
-            <span className={cn("font-mono", run.grade.falsePositives.length ? "text-offense" : "text-muted-foreground")}>
-              {run.grade.falsePositives.length} false positives
-            </span>
-            <span className="font-mono text-muted-foreground">{run.alerts.length} alerts</span>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {run.grade.incidents.map((i) => {
-              const hit = run.grade.detected.includes(i);
-              return (
-                <div key={i} className={cn("rounded-xl border-2 p-3 text-sm", hit ? "border-primary/50 bg-primary/10" : "border-offense/50 bg-offense/10")}>
-                  <span className="font-bold">{hit ? "✓ Caught" : "✗ Missed"}</span>
-                  <p className="text-muted-foreground">{INCIDENT_NAMES[i] ?? i}</p>
-                </div>
-              );
-            })}
-          </div>
-          {run.grade.passed && online.every(Boolean) && (
-            <p className="rounded-xl border-2 border-accent bg-accent/10 p-4 text-center font-bold text-accent">
-              ★ Your IDS is complete. Every attack in the replay was detected with zero false positives.
+      <Panel
+        className={cn(
+          "space-y-4",
+          unlocked ? "border-accent/60 bg-accent/5" : "opacity-60",
+        )}
+      >
+        <div>
+          <p className="font-mono text-xs text-accent">FINAL · CHAINED CTF</p>
+          <h2 className="text-2xl font-bold">Bounty capstone</h2>
+          {!unlocked ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Finish every unit test to unlock. You have {online.filter(Boolean).length}/8 skills unlocked.
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-muted-foreground">
+              A fresh HackerOne program just dropped: <span className="font-mono text-foreground">*.megashop.example</span>. Walk
+              the full chain from recon to a critical finding. Submit each step's answer, then file the final report.
             </p>
           )}
-          <PacketViewer packets={FINAL_TRAFFIC} highlight={new Set(run.alerts.map((a) => a.packetId))} falsePositive={new Set(run.grade.falsePositives)} />
-        </Panel>
-      )}
+        </div>
+
+        {unlocked && (
+          <>
+            <ol className="space-y-3">
+              {CAPSTONE_STEPS.map((s, i) => {
+                const isOpen = open[s.id] ?? false;
+                return (
+                  <li key={s.id} className="rounded-xl border-2 border-border bg-card">
+                    <button
+                      type="button"
+                      onClick={() => setOpen((o) => ({ ...o, [s.id]: !isOpen }))}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                    >
+                      <span className="font-bold">{s.title}</span>
+                      <span
+                        className={cn(
+                          "font-mono text-xs",
+                          checked[i] === true && "text-primary",
+                          checked[i] === false && "text-offense",
+                          checked[i] === null && "text-muted-foreground",
+                        )}
+                      >
+                        {checked[i] === true ? "✓ solved" : checked[i] === false ? "✗ retry" : isOpen ? "▾" : "▸"}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="space-y-3 border-t-2 border-border p-4">
+                        <p className="text-sm">{s.prompt}</p>
+                        <div className="rounded-lg border border-border bg-terminal p-3 font-mono text-xs text-muted-foreground">
+                          <p className="text-primary">$ {s.commandHint}</p>
+                          <pre className="mt-1 whitespace-pre-wrap text-foreground/85">{s.response}</pre>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            value={answers[i] ?? ""}
+                            onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
+                            placeholder="Your answer"
+                            aria-label={`Answer to ${s.title}`}
+                            className={cn(
+                              "flex-1 rounded-lg border-2 border-border bg-terminal px-3 py-2 font-mono text-sm outline-none focus:border-primary",
+                              checked[i] === true && "border-primary",
+                              checked[i] === false && "border-offense",
+                            )}
+                          />
+                          <Btn type="button" onClick={() => check(i)}>
+                            Check
+                          </Btn>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Btn variant="accent" onClick={submit}>
+                Submit the chain
+              </Btn>
+              {submitted && (
+                <span className="font-mono text-sm">
+                  Score {Math.round(submitted.score)}%
+                  {submitted.xp !== null && <span className="text-primary"> · +{submitted.xp} XP</span>}
+                </span>
+              )}
+              {submitted?.score === 100 && (
+                <span className="font-mono text-primary">★ {CAPSTONE_FLAG}</span>
+              )}
+            </div>
+
+            {finalDone && (
+              <p className="rounded-xl border-2 border-accent/50 bg-accent/10 p-3 text-center font-mono text-sm text-accent">
+                ★ Capstone complete. In real life, this chain is often a $5 000+ critical.
+              </p>
+            )}
+          </>
+        )}
+      </Panel>
     </div>
   );
 }
