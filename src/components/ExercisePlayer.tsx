@@ -24,6 +24,8 @@ export function ExercisePlayer({
   onAnswer: (correct: boolean) => void;
 }) {
   const [checked, setChecked] = useState<null | boolean>(null);
+  const [wrongTries, setWrongTries] = useState(0);
+  const hintsAvailable = ex.hints ?? [];
 
   // state per type
   const [pick, setPick] = useState<number | null>(null);
@@ -33,8 +35,19 @@ export function ExercisePlayer({
   const rightCol = useMemo(() => (ex.type === "match" ? shuffle(ex.pairs.map((p) => p[1])) : []), [ex]);
 
   function verdict(ok: boolean) {
-    setChecked(ok);
-    onAnswer(ok);
+    if (ok) {
+      setChecked(true);
+      // first-try correctness is already captured by the parent via onAnswer
+      onAnswer(true);
+      return;
+    }
+    const nextTries = wrongTries + 1;
+    setWrongTries(nextTries);
+    // Fire onAnswer only on the first attempt so the lesson's heart/XP accounting
+    // still runs; further wrong attempts just surface more hints.
+    if (nextTries === 1) onAnswer(false);
+    // Reveal full explanation once hints are exhausted
+    if (nextTries > hintsAvailable.length) setChecked(false);
   }
 
   function check() {
@@ -52,6 +65,7 @@ export function ExercisePlayer({
         return;
     }
   }
+
 
   function move(i: number, d: number) {
     if (checked !== null) return;
