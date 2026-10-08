@@ -179,7 +179,7 @@ server --- SYN,ACK ---> random host          dropped
       goal: "Alert on the SYN flood against 10.0.0.20:80 only — not on the completed connection from 10.0.0.12.",
       traffic: synFlood,
       starter:
-        '# HOME_NET = 10.0.0.0/24\n# Hint: many SYNs to one destination from many sources.\nalert tcp any any -> $HOME_NET 80 (msg:"Possible SYN flood"; flags:S; threshold: type threshold, track by_dst, count 25, seconds 2; sid:1000020;)\n',
+        '# HOME_NET = 10.0.0.0/24\n# Hint: many SYNs to one destination from many sources.\n# Track by destination this time.\nalert tcp any any -> $HOME_NET 80 (msg:"Possible SYN flood"; flags:S; sid:1000020;)\n',
     },
     tasks: [
       {

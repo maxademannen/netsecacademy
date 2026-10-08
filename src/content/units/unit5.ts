@@ -124,9 +124,9 @@ no human browses that evenly.`,
         {
           type: "rule",
           q: "Write a brute-force rule for /login on 10.0.0.20.",
-          traffic: webTraffic,
+          traffic: webTraffic.filter((p) => !p.label || p.label === "brute"),
           starter:
-            'alert tcp any any -> $HOME_NET 80 (msg:"Possible brute force on /login"; content:"POST /login"; threshold: type threshold, track by_src, count 10, seconds 10; sid:1000030;)\n',
+            '# Complete the rule: match the login POST and require a burst from one source.\nalert tcp any any -> $HOME_NET 80 (msg:"Possible brute force on /login"; sid:1000030;)\n',
           explain: "A content match on 'POST /login' plus a by_src threshold catches the burst while sparing one real login.",
         },
       ],
@@ -145,7 +145,7 @@ no human browses that evenly.`,
       goal: "Catch sqli, xss, brute and c2. Zero false positives on the two normal page views.",
       traffic: webTraffic,
       starter:
-        '# HOME_NET = 10.0.0.0/24. Four rules, one per incident.\nalert tcp any any -> $HOME_NET 80 (msg:"SQL injection UNION SELECT"; content:"UNION SELECT"; nocase; sid:1000040;)\nalert tcp any any -> $HOME_NET 80 (msg:"XSS <script>"; content:"<script"; nocase; sid:1000041;)\nalert tcp any any -> $HOME_NET 80 (msg:"Brute force /login"; content:"POST /login"; threshold: type threshold, track by_src, count 10, seconds 10; sid:1000042;)\nalert tcp $HOME_NET any -> any 80 (msg:"Beacon to cdn.evil.io"; content:"Host: cdn.evil.io"; sid:1000043;)\n',
+        '# HOME_NET = 10.0.0.0/24. Four rules, one per incident. The first is done for you.\nalert tcp any any -> $HOME_NET 80 (msg:"SQL injection UNION SELECT"; content:"UNION SELECT"; nocase; sid:1000040;)\n# XSS rule here\n# Brute force rule here (hint: threshold)\n# Beacon rule here (hint: outbound from $HOME_NET)\n',
     },
     tasks: [
       { q: "Which HTTP method does the SQLi use?", answers: ["get"], hint: "Look at the request line of the sqlmap request." },

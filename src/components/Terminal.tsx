@@ -72,7 +72,7 @@ export function Terminal({ host, commands, hints }: { host: string; commands: Re
               } else if (e.key === "ArrowDown") {
                 const n = hIdx - 1;
                 setHIdx(Math.max(n, -1));
-                setInput(n >= 0 ? history[n] : "");
+                setInput(n >= 0 ? (history[n] ?? "") : "");
                 e.preventDefault();
               }
             }}

@@ -91,9 +91,9 @@ const unit7: Unit = {
         {
           type: "rule",
           q: "Tune the brute-force rule from the web lab so it only alerts on at least 10 attempts in 10 seconds.",
-          traffic: webTraffic,
+          traffic: webTraffic.filter((p) => !p.label || p.label === "brute"),
           starter:
-            'alert tcp any any -> $HOME_NET 80 (msg:"Brute /login"; content:"POST /login"; threshold: type threshold, track by_src, count 10, seconds 10; sid:1000060;)\n',
+            '# This threshold is too strict and misses the attack. Tune it.\nalert tcp any any -> $HOME_NET 80 (msg:"Brute /login"; content:"POST /login"; threshold: type threshold, track by_src, count 100, seconds 10; sid:1000060;)\n',
           explain: "count 10 / seconds 10 matches the burst in the capture while a single real POST would not.",
         },
       ],
@@ -111,7 +111,7 @@ const unit7: Unit = {
       goal: "Catch sqli, xss, brute and c2. Zero false positives on the two normal page views.",
       traffic: webTraffic,
       starter:
-        'alert tcp any any -> $HOME_NET 80 (msg:"SQLi"; content:"UNION SELECT"; nocase; sid:1000070;)\nalert tcp any any -> $HOME_NET 80 (msg:"XSS"; content:"<script"; nocase; sid:1000071;)\nalert tcp any any -> $HOME_NET 80 (msg:"Brute"; content:"POST /login"; threshold: type threshold, track by_src, count 10, seconds 10; sid:1000072;)\nalert tcp $HOME_NET any -> any 80 (msg:"Beacon"; content:"Host: cdn.evil.io"; sid:1000073;)\n',
+        '# Write your full rule pack from scratch. Options: content, nocase, flags, threshold, pcre, dsize.\n',
     },
     packets: webTraffic,
     tasks: [

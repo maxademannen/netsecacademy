@@ -246,7 +246,7 @@ alert tcp any any -> $HOME_NET any (msg:"Port scan";
           q: "Write a rule that detects the port scan in this traffic — and does not alert on the normal web browsing.",
           traffic: scanTraffic,
           starter:
-            '# HOME_NET is 10.0.0.0/24\n# Hint: bare SYN packets, many ports, one source, short window.\nalert tcp any any -> $HOME_NET any (msg:"Port scan detected"; flags:S; threshold: type threshold, track by_src, count 15, seconds 5; sid:1000001;)\n',
+            '# HOME_NET is 10.0.0.0/24\n# Hint: bare SYN packets, many ports, one source, short window.\n# Add a threshold option so normal browsing stays quiet.\nalert tcp any any -> $HOME_NET any (msg:"Port scan detected"; flags:S; sid:1000001;)\n',
           explain:
             "A bare-SYN rule with a by_src threshold fires on the scanner while a handful of legitimate connections stay below the count.",
         },
@@ -285,7 +285,7 @@ alert tcp any any -> $HOME_NET any (msg:"Port scan";
       goal: "Alert on the port scan from 203.0.113.77 without alerting on the three normal connections.",
       traffic: scanTraffic,
       starter:
-        '# HOME_NET = 10.0.0.0/24\n# Goal: catch the scan, raise zero false positives.\nalert tcp any any -> $HOME_NET any (msg:"TCP port scan"; flags:S; threshold: type threshold, track by_src, count 15, seconds 5; sid:1000010;)\n',
+        '# HOME_NET = 10.0.0.0/24\n# Goal: catch the scan, raise zero false positives.\n# This naive rule fires on every connection attempt. Fix it.\nalert tcp any any -> $HOME_NET any (msg:"TCP port scan"; flags:S; sid:1000010;)\n',
     },
     packets: scanTraffic,
     tasks: [
