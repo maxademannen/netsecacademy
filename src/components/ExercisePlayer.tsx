@@ -188,8 +188,20 @@ export function ExercisePlayer({
 
       {checked === null && wrongTries > 0 && (
         <div className="rounded-xl border-2 border-accent/50 bg-accent/10 p-3 text-sm">
-          <p className="font-bold text-accent">Not yet — hint {Math.min(wrongTries, hintsAvailable.length)}/{hintsAvailable.length}</p>
-          <p className="mt-1 text-foreground/90">{hintsAvailable[Math.min(wrongTries, hintsAvailable.length) - 1]}</p>
+          {ex.type === "mc" && pick !== null && pick !== ex.answer && ex.why?.[pick] && (
+            <p className="mb-2 text-foreground/90">
+              <span className="font-bold text-offense">Why that's tempting but wrong: </span>
+              {ex.why[pick]}
+            </p>
+          )}
+          {hintsAvailable.length > 0 ? (
+            <>
+              <p className="font-bold text-accent">Not yet — hint {Math.min(wrongTries, hintsAvailable.length)}/{hintsAvailable.length}</p>
+              <p className="mt-1 text-foreground/90">{hintsAvailable[Math.min(wrongTries, hintsAvailable.length) - 1]}</p>
+            </>
+          ) : (
+            <p className="font-bold text-accent">Not yet — reread the card and try again.</p>
+          )}
         </div>
       )}
 
@@ -202,6 +214,18 @@ export function ExercisePlayer({
         >
           <p className="font-bold">{checked ? (wrongTries ? "Got it — with hints" : "Correct") : "Here's the reasoning"}</p>
           <p className="mt-1 text-muted-foreground">{ex.explain}</p>
+          {ex.type === "mc" && ex.why && (
+            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+              {ex.options.map((o, i) =>
+                i !== ex.answer && ex.why?.[i] ? (
+                  <li key={i}>
+                    <span className="font-mono text-offense">✗ {o}:</span> {ex.why[i]}
+                  </li>
+                ) : null,
+              )}
+            </ul>
+          )}
+          {ex.ref && <p className="mt-2 font-mono text-xs text-accent">↳ Review: “{ex.ref}”</p>}
         </div>
       )}
 
