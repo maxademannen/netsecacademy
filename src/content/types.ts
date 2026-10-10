@@ -21,12 +21,26 @@ export interface Packet {
   label?: string;
 }
 
+export type CardKind =
+  | "objective"
+  | "intuition"
+  | "prereq"
+  | "explain"
+  | "example"
+  | "mistakes"
+  | "practice"
+  | "relevance";
+
 export interface Card {
   title: string;
   body: string[];
   code?: string;
   /** "offense" cards get a red treatment, "defense" green */
   tone?: "offense" | "defense" | "info";
+  /** Teaching role of this card (objective, worked example, ...) shown as a label */
+  kind?: CardKind;
+  /** Inline knowledge checkpoint. Must be answered before moving on; costs no hearts. */
+  check?: Exercise;
 }
 
 interface ExBase {
@@ -36,11 +50,18 @@ interface ExBase {
   /** Progressive hints revealed one at a time after wrong answers,
    *  before the full explanation. Keep each hint short and nudging, not giving. */
   hints?: string[];
+  /** Which card in the lesson teaches this (card title), shown with the explanation. */
+  ref?: string;
 }
 
-
 export type Exercise =
-  | (ExBase & { type: "mc"; options: string[]; answer: number })
+  | (ExBase & {
+      type: "mc";
+      options: string[];
+      answer: number;
+      /** Per-option explanation of the misconception behind each wrong option (same order as options). */
+      why?: string[];
+    })
   | (ExBase & { type: "fill"; answers: string[] })
   | (ExBase & { type: "order"; items: string[] })
   | (ExBase & { type: "match"; pairs: [string, string][] })
