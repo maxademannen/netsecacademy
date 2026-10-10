@@ -6,6 +6,18 @@ import { Btn, Panel, ToneTag } from "@/components/kit";
 import { ExercisePlayer } from "@/components/ExercisePlayer";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import type { CardKind } from "@/content/types";
+
+const KIND_LABEL: Record<CardKind, string> = {
+  objective: "Objective",
+  intuition: "Why it matters",
+  prereq: "Prerequisite",
+  explain: "How it works",
+  example: "Worked example",
+  mistakes: "Common mistakes",
+  practice: "Guided practice",
+  relevance: "In the field",
+};
 
 export const Route = createFileRoute("/_authenticated/lesson/$unitId/$lessonId")({
   loader: ({ params }) => {
@@ -38,6 +50,7 @@ function LessonPage() {
   const [firstTry, setFirstTry] = useState<Record<number, boolean>>({});
   const [earned, setEarned] = useState<number | null>(null);
   const [step, setStep] = useState(0);
+  const [checkDone, setCheckDone] = useState<Record<number, boolean>>({});
 
   if (!lesson) return null;
   const total = lesson.cards.length + lesson.exercises.length;
@@ -114,6 +127,11 @@ function LessonPage() {
             <span className="font-mono text-xs text-muted-foreground">
               {card + 1}/{lesson.cards.length}
             </span>
+            {cardData.kind && (
+              <span className="rounded border border-accent/40 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent">
+                {KIND_LABEL[cardData.kind]}
+              </span>
+            )}
             <ToneTag tone={cardData.tone} />
           </div>
           <h2 className="text-xl font-bold">{cardData.title}</h2>
@@ -127,11 +145,20 @@ function LessonPage() {
               {cardData.code}
             </pre>
           )}
+          {cardData.check && (
+            <div className="pt-1">
+              <p className="mb-2 font-mono text-xs text-accent">CHECKPOINT · no hearts at stake</p>
+              <ExercisePlayer key={`chk-${card}`} ex={cardData.check} onAnswer={() => setCheckDone((d) => ({ ...d, [card]: true }))} />
+            </div>
+          )}
           <div className="flex justify-between pt-2">
             <Btn variant="ghost" disabled={card === 0} onClick={() => setCard(card - 1)}>
               Back
             </Btn>
-            <Btn onClick={() => (card + 1 < lesson.cards.length ? setCard(card + 1) : setPhase("ex"))}>
+            <Btn
+              disabled={!!cardData.check && !checkDone[card]}
+              onClick={() => (card + 1 < lesson.cards.length ? setCard(card + 1) : setPhase("ex"))}
+            >
               {card + 1 < lesson.cards.length ? "Next" : "Start practice"}
             </Btn>
           </div>
